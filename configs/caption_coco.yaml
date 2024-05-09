@@ -1,9 +1,9 @@
-image_root: '/kaggle/input/power_dataset_self/images'
-ann_root: 'power_dataset_self/annotations'
+image_root: '/kaggle/input/power-dataset-self/images'
+ann_root: 'power-dataset-self/annotations'
 coco_gt_root: 'annotation/coco_gt'
 
 # set pretrained as a file path or an url
-pretrained: '/kaggle/input/power_dataset_self/checkpoints/model_base_caption_capfilt_large.pth'
+pretrained: '/kaggle/input/power-dataset-self/checkpoints/model_base_caption_capfilt_large.pth'
 
 # size of vit model; base or large
 vit: 'base'
