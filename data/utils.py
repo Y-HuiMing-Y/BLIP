@@ -87,6 +87,7 @@ def coco_caption_eval(coco_gt_root, results_file, split):
     filenames = {'val':'power_karpathy_val.json','test':'power_karpathy_test.json'}
     
     download_url(urls[split],coco_gt_root)
+    print("!!!!!!download_url:" + download_url)
     annotation_file = os.path.join(coco_gt_root,filenames[split])
     
     # create coco object and coco_result object
