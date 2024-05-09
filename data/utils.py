@@ -82,9 +82,9 @@ from pycocoevalcap.eval import COCOEvalCap
 from torchvision.datasets.utils import download_url
 
 def coco_caption_eval(coco_gt_root, results_file, split):
-    urls = {'val':'https://storage.googleapis.com/sfr-vision-language-research/datasets/coco_karpathy_val_gt.json',
-            'test':'https://storage.googleapis.com/sfr-vision-language-research/datasets/coco_karpathy_test_gt.json'}
-    filenames = {'val':'coco_karpathy_val_gt.json','test':'coco_karpathy_test_gt.json'}    
+    urls = {'val':'https://download.csdn.net/download/m0_53761112/88735907/power_karpathy_val.json',
+            'test':'https://download.csdn.net/download/m0_53761112/88735903/power_karpathy_test.json'}
+    filenames = {'val':'power_karpathy_val.json','test':'power_karpathy_test.json'}
     
     download_url(urls[split],coco_gt_root)
     annotation_file = os.path.join(coco_gt_root,filenames[split])
