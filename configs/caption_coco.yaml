@@ -1,5 +1,5 @@
 image_root: '/kaggle/input/power-dataset-self/images'
-ann_root: 'power-dataset-self/annotations'
+ann_root: '/kaggle/input/power-dataset-self/annotations'
 coco_gt_root: 'annotation/coco_gt'
 
 # set pretrained as a file path or an url
