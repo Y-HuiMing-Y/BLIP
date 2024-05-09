@@ -70,7 +70,7 @@ def evaluate(model, data_loader, device, config):
         
         image = image.to(device)       
         
-        captions = model.generate(image, sample=False, num_beams=config['num_beams'], max_length=config['max_length'], 
+        captions = model.generate(image, sample=True, num_beams=config['num_beams'], max_length=config['max_length'], 
                                   min_length=config['min_length'])
         
         for caption, img_id in zip(captions, image_id):
