@@ -92,8 +92,9 @@ def main(args, config):
 
     #### Dataset #### 
     print("Creating captioning dataset")
-    train_dataset, val_dataset, test_dataset = create_dataset('caption_coco', config)  
-
+    train_dataset, val_dataset, test_dataset = create_dataset('caption_coco', config)
+    print("!!!!!!!!!!!!!!!")
+    print(val_dataset)
     if args.distributed:
         num_tasks = utils.get_world_size()
         global_rank = utils.get_rank()            
@@ -135,8 +136,6 @@ def main(args, config):
             train_stats = train(model, train_loader, optimizer, epoch, device) 
         
         val_result = evaluate(model_without_ddp, val_loader, device, config)
-        print("!!!!!!!!!!!!!!!")
-        print(val_result)
         val_result_file = save_result(val_result, args.result_dir, 'val_epoch%d'%epoch, remove_duplicate='image_id')        
   
         test_result = evaluate(model_without_ddp, test_loader, device, config)  
