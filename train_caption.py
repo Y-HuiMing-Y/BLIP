@@ -134,7 +134,9 @@ def main(args, config):
                 
             train_stats = train(model, train_loader, optimizer, epoch, device) 
         
-        val_result = evaluate(model_without_ddp, val_loader, device, config)  
+        val_result = evaluate(model_without_ddp, val_loader, device, config)
+        print("!!!!!!!!!!!!!!!")
+        print(val_result)
         val_result_file = save_result(val_result, args.result_dir, 'val_epoch%d'%epoch, remove_duplicate='image_id')        
   
         test_result = evaluate(model_without_ddp, test_loader, device, config)  
