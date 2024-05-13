@@ -1,4 +1,4 @@
-image_root: '/kaggle/input/power-dataset-self/images'
+image_root: '/kaggle/input/power-dataset-self/images/'
 ann_root: '/kaggle/input/power-dataset-self/annotations'
 coco_gt_root: '/kaggle/input/power-dataset-self/annotations/power_gt'
 
