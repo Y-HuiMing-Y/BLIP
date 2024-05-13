@@ -91,6 +91,8 @@ def coco_caption_eval(coco_gt_root, results_file, split):
     
     # create coco object and coco_result object
     coco = COCO(annotation_file)
+    print("!!!!!!!!!!!!!!!!!!!!!!!!!")
+    print(results_file)
     coco_result = coco.loadRes(results_file)
 
     # create coco_eval object by taking coco and coco_result
