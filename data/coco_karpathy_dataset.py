@@ -77,7 +77,7 @@ class coco_karpathy_caption_eval(Dataset):
         image = Image.open(image_path).convert('RGB')
         image = self.transform(image)
 
-        img_id = ann['image'].split('/')[-1].strip('.jpg').split('_')[-1]
+        img_id = ann['image'].split('/')[-1].strip('.jpg').split('_')[0:-1]
         # print("!!!!!!img_id:" + str(img_id))
         return image, int(img_id)
 

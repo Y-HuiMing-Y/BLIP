@@ -69,8 +69,6 @@ def evaluate(model, data_loader, device, config):
     result = []
     for image, image_id in metric_logger.log_every(data_loader, print_freq, header):
         image = image.to(device)
-        print("=====image_id======")
-        print(image_id)
         captions = model.generate(image, sample=True, num_beams=config['num_beams'], max_length=config['max_length'],
                                   min_length=config['min_length'])
 
@@ -138,8 +136,6 @@ def main(args, config):
             train_stats = train(model, train_loader, optimizer, epoch, device)
 
         val_result = evaluate(model_without_ddp, val_loader, device, config)
-        print("+++++++++++val_result++++++++++")
-        print(val_result)
         val_result_file = save_result(val_result, args.result_dir, 'val_epoch%d' % epoch, remove_duplicate='image_id')
         test_result = evaluate(model_without_ddp, test_loader, device, config)
         test_result_file = save_result(test_result, args.result_dir, 'test_epoch%d' % epoch,
