@@ -137,6 +137,8 @@ def main(args, config):
             train_stats = train(model, train_loader, optimizer, epoch, device)
 
         val_result = evaluate(model_without_ddp, val_loader, device, config)
+        print("+++++++++++val_result++++++++++")
+        print(val_result)
         val_result_file = save_result(val_result, args.result_dir, 'val_epoch%d' % epoch, remove_duplicate='image_id')
         print("--------val_result_file--------")
         print(val_result_file)
