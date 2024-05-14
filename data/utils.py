@@ -88,9 +88,6 @@ def coco_caption_eval(coco_gt_root, results_file, split):
     
     download_url(urls[split],coco_gt_root)
     annotation_file = os.path.join(coco_gt_root,filenames[split])
-    with open(annotation_file, 'r') as f:
-        file_content = f.read()
-        print(file_content)
 
     # create coco object and coco_result object
     coco = COCO(annotation_file)
