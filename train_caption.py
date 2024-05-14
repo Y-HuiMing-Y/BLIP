@@ -69,6 +69,8 @@ def evaluate(model, data_loader, device, config):
     result = []
     for image, image_id in metric_logger.log_every(data_loader, print_freq, header):
         image = image.to(device)
+        print("=====image_id======")
+        print(image_id)
 
         captions = model.generate(image, sample=True, num_beams=config['num_beams'], max_length=config['max_length'],
                                   min_length=config['min_length'])
