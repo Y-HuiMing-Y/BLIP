@@ -123,7 +123,7 @@ def main(args, config):
     if args.distributed:
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[
             args.gpu])  # 将模型包装在 torch.nn.parallel.DistributedDataParallel 中
-        model_without_ddp = model.module    # 保存未经包装的原始模型
+        model_without_ddp = model.module  # 保存未经包装的原始模型
     # 创建AdamW 优化器对象,并传入了模型的参数、学习率以及权重衰减参数
     optimizer = torch.optim.AdamW(params=model.parameters(), lr=config['init_lr'], weight_decay=config['weight_decay'])
 
@@ -135,9 +135,10 @@ def main(args, config):
     for epoch in range(0, config['max_epoch']):
         if not args.evaluate:
             if args.distributed:
-                train_loader.sampler.set_epoch(epoch)   # 在训练数据加载器的采样器中设置一个新的 epoch
+                train_loader.sampler.set_epoch(epoch)  # 在训练数据加载器的采样器中设置一个新的 epoch
 
-            cosine_lr_schedule(optimizer, epoch, config['max_epoch'], config['init_lr'], config['min_lr'])  # 根据余弦退火的策略动态地调整学习率
+            cosine_lr_schedule(optimizer, epoch, config['max_epoch'], config['init_lr'],
+                               config['min_lr'])  # 根据余弦退火的策略动态地调整学习率
 
             train_stats = train(model, train_loader, optimizer, epoch, device)  # 训练模型并返回训练过程中的统计信息
 
