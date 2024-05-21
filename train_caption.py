@@ -79,25 +79,30 @@ def evaluate(model, data_loader, device, config):
 
 
 def main(args, config):
+    # 初始化分布式模式，args包含分布式训练相关配置的参数对象
     utils.init_distributed_mode(args)
-
+    # 根据传入的参数 args.device 设置 PyTorch 的设备对象(三种取值：cpu, cuda/cuda:0, cuda:1/cuda:2)
     device = torch.device(args.device)
 
-    # fix the seed for reproducibility
-    seed = args.seed + utils.get_rank()
-    torch.manual_seed(seed)
-    np.random.seed(seed)
-    random.seed(seed)
-    cudnn.benchmark = True
+    # fix the seed for reproducibility(固定随机数种子，以确保代码运行结果的可重复性)
+    seed = args.seed + utils.get_rank()  # 设置的固定种子加上当前进程的排名
+    torch.manual_seed(seed)  # 设置 PyTorch 的随机数生成器的种子值为 seed
+    np.random.seed(seed)  # 设置随机数种子,与manual随机数序列一致
+    random.seed(seed)  # 与上面功能相同
+    cudnn.benchmark = True  # 提高运行速度，但是在某些情况下可能会带来一些额外的开销
 
     #### Dataset #### 
     print("Creating captioning dataset")
-    train_dataset, val_dataset, test_dataset = create_dataset('caption_coco', config)
+
+    train_dataset, val_dataset, test_dataset = create_dataset('caption_coco',
+                                                              config)  # 通过config里的设置创建名为caption_coco的训练集、验证集、测试集
+    # 检查是否采用分布式训练，采用则获取当前总任务数和全局排名，然后调用 create_sampler 函数创建数据采样器。
+    # 如果未启用分布式训练，则直接将 samplers 设为三个 None 值。
     if args.distributed:
-        num_tasks = utils.get_world_size()
-        global_rank = utils.get_rank()
+        num_tasks = utils.get_world_size()  # 获取分布式中任务总数
+        global_rank = utils.get_rank()  # 获取当前进程全局排名
         samplers = create_sampler([train_dataset, val_dataset, test_dataset], [True, False, False], num_tasks,
-                                  global_rank)
+                                  global_rank)  # 创建数据采样器
     else:
         samplers = [None, None, None]
 
@@ -110,15 +115,16 @@ def main(args, config):
     print("Creating model")
     model = blip_decoder(pretrained=config['pretrained'], image_size=config['image_size'], vit=config['vit'],
                          vit_grad_ckpt=config['vit_grad_ckpt'], vit_ckpt_layer=config['vit_ckpt_layer'],
-                         prompt=config['prompt'])
+                         prompt=config['prompt'])  # 创建blip解码器
 
-    model = model.to(device)
+    model = model.to(device)  # 将模型移动到device设备上
 
-    model_without_ddp = model
+    model_without_ddp = model  # 另外将model赋值给不使用分布式的模型model_without_ddp
     if args.distributed:
-        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
-        model_without_ddp = model.module
-
+        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[
+            args.gpu])  # 将模型包装在 torch.nn.parallel.DistributedDataParallel 中
+        model_without_ddp = model.module    # 保存未经包装的原始模型
+    # 创建AdamW 优化器对象,并传入了模型的参数、学习率以及权重衰减参数
     optimizer = torch.optim.AdamW(params=model.parameters(), lr=config['init_lr'], weight_decay=config['weight_decay'])
 
     best = 0
@@ -129,22 +135,22 @@ def main(args, config):
     for epoch in range(0, config['max_epoch']):
         if not args.evaluate:
             if args.distributed:
-                train_loader.sampler.set_epoch(epoch)
+                train_loader.sampler.set_epoch(epoch)   # 在训练数据加载器的采样器中设置一个新的 epoch
 
-            cosine_lr_schedule(optimizer, epoch, config['max_epoch'], config['init_lr'], config['min_lr'])
+            cosine_lr_schedule(optimizer, epoch, config['max_epoch'], config['init_lr'], config['min_lr'])  # 根据余弦退火的策略动态地调整学习率
 
-            train_stats = train(model, train_loader, optimizer, epoch, device)
+            train_stats = train(model, train_loader, optimizer, epoch, device)  # 训练模型并返回训练过程中的统计信息
 
         val_result = evaluate(model_without_ddp, val_loader, device, config)
         val_result_file = save_result(val_result, args.result_dir, 'val_epoch%d' % epoch, remove_duplicate='image_id')
         test_result = evaluate(model_without_ddp, test_loader, device, config)
         test_result_file = save_result(test_result, args.result_dir, 'test_epoch%d' % epoch,
                                        remove_duplicate='image_id')
-
+        # 对主进程进行模型保存、评估结果保存操作
         if utils.is_main_process():
             coco_val = coco_caption_eval(config['coco_gt_root'], val_result_file, 'val')
             coco_test = coco_caption_eval(config['coco_gt_root'], test_result_file, 'test')
-
+            # 计算评估指标，保存到log_stats中
             if args.evaluate:
                 log_stats = {**{f'val_{k}': v for k, v in coco_val.eval.items()},
                              **{f'test_{k}': v for k, v in coco_test.eval.items()},
@@ -158,7 +164,7 @@ def main(args, config):
                     'config': config,
                     'epoch': epoch,
                 }
-
+                # 比较验证集评估结果，保存最佳性能的模型
                 if coco_val.eval['CIDEr'] + coco_val.eval['Bleu_4'] > best:
                     best = coco_val.eval['CIDEr'] + coco_val.eval['Bleu_4']
                     best_epoch = epoch
