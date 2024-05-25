@@ -29,4 +29,4 @@ class nocaps_eval(Dataset):
         image = Image.open(image_path).convert('RGB')   
         image = self.transform(image)          
         
-        return image, int(ann['img_id'])    
+        return image, int(ann['image_id'])    
