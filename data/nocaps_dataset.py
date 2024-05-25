@@ -8,9 +8,9 @@ from PIL import Image
 
 class nocaps_eval(Dataset):
     def __init__(self, transform, image_root, ann_root, split):   
-        urls = {'val':'https://storage.googleapis.com/sfr-vision-language-research/datasets/nocaps_val.json',
-                'test':'https://storage.googleapis.com/sfr-vision-language-research/datasets/nocaps_test.json'}
-        filenames = {'val':'nocaps_val.json','test':'nocaps_test.json'}
+        urls = {'val': 'https://download.csdn.net/download/m0_53761112/88735907/power_karpathy_val.json',
+                'test': 'https://download.csdn.net/download/m0_53761112/88735903/power_karpathy_test.json'}
+        filenames = {'val': 'power_karpathy_val.json', 'test': 'power_karpathy_test.json'}
         
         download_url(urls[split],ann_root)
         
