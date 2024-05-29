@@ -5,7 +5,7 @@
  * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
  * By Junnan Li
 '''
-from models.med import BertConfig, BertModel, BertLMHeadModel
+from models.med import BertConfig, BertModel, BertLMHeadModel, logger
 from transformers import BertTokenizer
 import transformers
 transformers.logging.set_verbosity_error()
@@ -198,8 +198,9 @@ class BLIP_Pretrain(nn.Module):
         ##================= LM ========================##     
         decoder_input_ids = text.input_ids.clone()      
         decoder_input_ids[:,0] = self.tokenizer.bos_token_id
-        decoder_targets = decoder_input_ids.masked_fill(decoder_input_ids == self.tokenizer.pad_token_id, -100) 
+        decoder_targets = decoder_input_ids.masked_fill(decoder_input_ids == self.tokenizer.pad_token_id, -100)
 
+        # 这个就是一个只有decoder的bert，主要用来生产文本
         decoder_output = self.text_decoder(decoder_input_ids, 
                                            attention_mask = text.attention_mask, 
                                            encoder_hidden_states = image_embeds,
