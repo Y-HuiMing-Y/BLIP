@@ -94,8 +94,8 @@ def main(args, config):
     #### Dataset #### 
     print("Creating captioning dataset")
 
-    train_dataset, val_dataset, test_dataset = create_dataset('caption_coco',
-                                                              config)  # 通过config里的设置创建名为caption_coco的训练集、验证集、测试集
+    train_dataset, val_dataset, test_dataset = create_dataset('caption_coco', config)
+    # 通过config里的设置创建名为caption_coco的训练集、验证集、测试集
     # 检查是否采用分布式训练，采用则获取当前总任务数和全局排名，然后调用 create_sampler 函数创建数据采样器。
     # 如果未启用分布式训练，则直接将 samplers 设为三个 None 值。
     if args.distributed:
@@ -121,8 +121,8 @@ def main(args, config):
 
     model_without_ddp = model  # 另外将model赋值给不使用分布式的模型model_without_ddp
     if args.distributed:
-        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[
-            args.gpu])  # 将模型包装在 torch.nn.parallel.DistributedDataParallel 中
+        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
+        # 将模型包装在 torch.nn.parallel.DistributedDataParallel 中
         model_without_ddp = model.module  # 保存未经包装的原始模型
     # 创建AdamW 优化器对象,并传入了模型的参数、学习率以及权重衰减参数
     optimizer = torch.optim.AdamW(params=model.parameters(), lr=config['init_lr'], weight_decay=config['weight_decay'])
@@ -137,16 +137,15 @@ def main(args, config):
             if args.distributed:
                 train_loader.sampler.set_epoch(epoch)  # 在训练数据加载器的采样器中设置一个新的 epoch
 
-            cosine_lr_schedule(optimizer, epoch, config['max_epoch'], config['init_lr'],
-                               config['min_lr'])  # 根据余弦退火的策略动态地调整学习率
-
-            train_stats = train(model, train_loader, optimizer, epoch, device)  # 训练模型并返回训练过程中的统计信息
+            cosine_lr_schedule(optimizer, epoch, config['max_epoch'], config['init_lr'], config['min_lr'])
+            # 根据余弦退火的策略动态地调整学习率
+            train_stats = train(model, train_loader, optimizer, epoch, device)
+            # 训练模型并返回训练过程中的统计信息
 
         val_result = evaluate(model_without_ddp, val_loader, device, config)
         val_result_file = save_result(val_result, args.result_dir, 'val_epoch%d' % epoch, remove_duplicate='image_id')
         test_result = evaluate(model_without_ddp, test_loader, device, config)
-        test_result_file = save_result(test_result, args.result_dir, 'test_epoch%d' % epoch,
-                                       remove_duplicate='image_id')
+        test_result_file = save_result(test_result, args.result_dir, 'test_epoch%d' % epoch, remove_duplicate='image_id')
         # 对主进程进行模型保存、评估结果保存操作
         if utils.is_main_process():
             coco_val = coco_caption_eval(config['coco_gt_root'], val_result_file, 'val')

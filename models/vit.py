@@ -13,24 +13,33 @@ import torch.nn as nn
 import torch.nn.functional as F
 from functools import partial
 
-from timm.models.vision_transformer import _cfg, PatchEmbed
+from timm.models.vision_transformer import _cfg, PatchEmbed, resize_pos_embed
 from timm.models.registry import register_model
 from timm.models.layers import trunc_normal_, DropPath
 from timm.models.helpers import named_apply, adapt_input_conv
 
 from fairscale.nn.checkpoint.checkpoint_activations import checkpoint_wrapper
 
+
 class Mlp(nn.Module):
-    """ MLP as used in Vision Transformer, MLP-Mixer and related networks
     """
+    MLP as used in Vision Transformer, MLP-Mixer and related networks
+    MLP用于Vision Transformer, MLP- mixer及相关网络
+    """
+
     def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.):
-        super().__init__()
+        '''
+        init函数用于在类实例化时初始化对象，in_features：输入特征维度，hidden_features：隐藏层的维度（默认为None，若不指定则使用in_features），
+        out_features：输出特征的维度（默认值为 None，如果不指定则使用 in_features），act_layer：激活函数层，默认使用 nn.GELU，
+        drop：dropout的概率，默认值为 0，即没有 dropout
+        '''
+        super().__init__()  # 调用父类的构造函数，初始化父类
         out_features = out_features or in_features
         hidden_features = hidden_features or in_features
-        self.fc1 = nn.Linear(in_features, hidden_features)
-        self.act = act_layer()
-        self.fc2 = nn.Linear(hidden_features, out_features)
-        self.drop = nn.Dropout(drop)
+        self.fc1 = nn.Linear(in_features, hidden_features)  # 定义第一个全连接层（fc1），将维度in_features映射到维度hidden_features
+        self.act = act_layer()  # 定义激活层（act），使用传入的激活函数类实例化一个激活函数对象，默认是 GELU 激活函数。
+        self.fc2 = nn.Linear(hidden_features, out_features)  # 定义第二个全连接层（fc2），它将hidden_features映射到维度out_features
+        self.drop = nn.Dropout(drop)  # 定义 dropout 层（drop），在训练过程中以drop的概率随机将某些神经元的输出设为0，以防止过拟合
 
     def forward(self, x):
         x = self.fc1(x)
@@ -42,47 +51,59 @@ class Mlp(nn.Module):
 
 
 class Attention(nn.Module):
+    # MultiHeadAttention 多头自注意力模块
     def __init__(self, dim, num_heads=8, qkv_bias=False, qk_scale=None, attn_drop=0., proj_drop=0.):
+        # dim：输入维度，num_heads：多头注意力头数，qk_scale：缩放因子,
         super().__init__()
         self.num_heads = num_heads
-        head_dim = dim // num_heads
+        head_dim = dim // num_heads  # head_dim表示每个头的维度
         # NOTE scale factor was wrong in my original version, can set manually to be compat with prev weights
-        self.scale = qk_scale or head_dim ** -0.5
+        self.scale = qk_scale or head_dim ** -0.5  # 如果没有提供缩放因子，则使用head_dim的倒数平方根作为缩放因子
         self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
+        # 一个线性变换层，将输入特征映射到query、key、value的空间。它的输出维度是 dim * 3，因为我们需要为每个头生成 Q、K 和 V
         self.attn_drop = nn.Dropout(attn_drop)
+        # self.attn_drop 是一个 dropout 层，用于在计算注意力权重时随机丢弃一些信息，以防止过拟合。
         self.proj = nn.Linear(dim, dim)
+        # self.proj 是一个线性变换层，用于将多头注意力的输出映射回原始维度 dim
         self.proj_drop = nn.Dropout(proj_drop)
+        # self.proj_drop 是一个 dropout 层，用于在投影过程中随机丢弃一些信息，以防止过拟合
         self.attn_gradients = None
         self.attention_map = None
-        
+        # self.attn_gradients 和 self.attention_map 是用于保存注意力梯度和注意力图的变量，通常用于调试和可视化
+
     def save_attn_gradients(self, attn_gradients):
         self.attn_gradients = attn_gradients
-        
+
     def get_attn_gradients(self):
         return self.attn_gradients
-    
+
     def save_attention_map(self, attention_map):
         self.attention_map = attention_map
-        
+
     def get_attention_map(self):
         return self.attention_map
-    
+
     def forward(self, x, register_hook=False):
-        B, N, C = x.shape
+        B, N, C = x.shape   # 获取输入张量 x 的形状信息，B 表示批量大小，N 表示序列长度，C 表示特征维度
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
-        q, k, v = qkv[0], qkv[1], qkv[2]   # make torchscript happy (cannot use tensor as tuple)
+        q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy (cannot use tensor as tuple)
 
         attn = (q @ k.transpose(-2, -1)) * self.scale
         attn = attn.softmax(dim=-1)
         attn = self.attn_drop(attn)
-                
+        # 计算注意力分数，首先计算Q和K的乘积，然后进行缩放。接着应用 softmax 函数得到注意力权重，并通过 dropout 层处理以减少过拟合
+
         if register_hook:
             self.save_attention_map(attn)
-            attn.register_hook(self.save_attn_gradients)        
+            attn.register_hook(self.save_attn_gradients)
+            # 如果 register_hook 为 True，表示要记录注意力权重和梯度。则调用 save_attention_map 方法记录注意力权重，
+            # 并调用 save_attn_gradients 方法注册钩子以保存注意力梯度
 
         x = (attn @ v).transpose(1, 2).reshape(B, N, C)
         x = self.proj(x)
         x = self.proj_drop(x)
+        # 使用注意力权重对值进行加权求和，然后将结果重排并重新形状为 (B, N, C)。
+        # 接着通过投影层 self.proj 进行线性变换，并通过 dropout 层处理以减少过拟合
         return x
 
 
@@ -109,15 +130,16 @@ class Block(nn.Module):
         x = x + self.drop_path(self.mlp(self.norm2(x)))
         return x
 
-    
+
 class VisionTransformer(nn.Module):
     """ Vision Transformer
     A PyTorch impl of : `An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale`  -
         https://arxiv.org/abs/2010.11929
     """
+
     def __init__(self, img_size=224, patch_size=16, in_chans=3, num_classes=1000, embed_dim=768, depth=12,
                  num_heads=12, mlp_ratio=4., qkv_bias=True, qk_scale=None, representation_size=None,
-                 drop_rate=0., attn_drop_rate=0., drop_path_rate=0., norm_layer=None, 
+                 drop_rate=0., attn_drop_rate=0., drop_path_rate=0., norm_layer=None,
                  use_grad_checkpointing=False, ckpt_layer=0):
         """
         Args:
@@ -155,7 +177,7 @@ class VisionTransformer(nn.Module):
             Block(
                 dim=embed_dim, num_heads=num_heads, mlp_ratio=mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
                 drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[i], norm_layer=norm_layer,
-                use_grad_checkpointing=(use_grad_checkpointing and i>=depth-ckpt_layer)
+                use_grad_checkpointing=(use_grad_checkpointing and i >= depth - ckpt_layer)
             )
             for i in range(depth)])
         self.norm = norm_layer(embed_dim)
@@ -183,20 +205,20 @@ class VisionTransformer(nn.Module):
 
         cls_tokens = self.cls_token.expand(B, -1, -1)  # stole cls_tokens impl from Phil Wang, thanks
         x = torch.cat((cls_tokens, x), dim=1)
-  
-        x = x + self.pos_embed[:,:x.size(1),:]
+
+        x = x + self.pos_embed[:, :x.size(1), :]
         x = self.pos_drop(x)
 
-        for i,blk in enumerate(self.blocks):
-            x = blk(x, register_blk==i)
+        for i, blk in enumerate(self.blocks):
+            x = blk(x, register_blk == i)
         x = self.norm(x)
-        
+
         return x
 
     @torch.jit.ignore()
     def load_pretrained(self, checkpoint_path, prefix=''):
         _load_weights(self, checkpoint_path, prefix)
-        
+
 
 @torch.no_grad()
 def _load_weights(model: VisionTransformer, checkpoint_path: str, prefix: str = ''):
@@ -254,12 +276,12 @@ def _load_weights(model: VisionTransformer, checkpoint_path: str, prefix: str = 
     model.pos_embed.copy_(pos_embed_w)
     model.norm.weight.copy_(_n2p(w[f'{prefix}Transformer/encoder_norm/scale']))
     model.norm.bias.copy_(_n2p(w[f'{prefix}Transformer/encoder_norm/bias']))
-#     if isinstance(model.head, nn.Linear) and model.head.bias.shape[0] == w[f'{prefix}head/bias'].shape[-1]:
-#         model.head.weight.copy_(_n2p(w[f'{prefix}head/kernel']))
-#         model.head.bias.copy_(_n2p(w[f'{prefix}head/bias']))
-#     if isinstance(getattr(model.pre_logits, 'fc', None), nn.Linear) and f'{prefix}pre_logits/bias' in w:
-#         model.pre_logits.fc.weight.copy_(_n2p(w[f'{prefix}pre_logits/kernel']))
-#         model.pre_logits.fc.bias.copy_(_n2p(w[f'{prefix}pre_logits/bias']))
+    #     if isinstance(model.head, nn.Linear) and model.head.bias.shape[0] == w[f'{prefix}head/bias'].shape[-1]:
+    #         model.head.weight.copy_(_n2p(w[f'{prefix}head/kernel']))
+    #         model.head.bias.copy_(_n2p(w[f'{prefix}head/bias']))
+    #     if isinstance(getattr(model.pre_logits, 'fc', None), nn.Linear) and f'{prefix}pre_logits/bias' in w:
+    #         model.pre_logits.fc.weight.copy_(_n2p(w[f'{prefix}pre_logits/kernel']))
+    #         model.pre_logits.fc.bias.copy_(_n2p(w[f'{prefix}pre_logits/bias']))
     for i, block in enumerate(model.blocks.children()):
         block_prefix = f'{prefix}Transformer/encoderblock_{i}/'
         mha_prefix = block_prefix + 'MultiHeadDotProductAttention_1/'
@@ -277,8 +299,8 @@ def _load_weights(model: VisionTransformer, checkpoint_path: str, prefix: str = 
         block.norm2.weight.copy_(_n2p(w[f'{block_prefix}LayerNorm_2/scale']))
         block.norm2.bias.copy_(_n2p(w[f'{block_prefix}LayerNorm_2/bias']))
 
-            
-def interpolate_pos_embed(pos_embed_checkpoint, visual_encoder):        
+
+def interpolate_pos_embed(pos_embed_checkpoint, visual_encoder):
     # interpolate position embedding
     embedding_size = pos_embed_checkpoint.shape[-1]
     num_patches = visual_encoder.patch_embed.num_patches
@@ -288,7 +310,7 @@ def interpolate_pos_embed(pos_embed_checkpoint, visual_encoder):
     # height (== width) for the new position embedding
     new_size = int(num_patches ** 0.5)
 
-    if orig_size!=new_size:
+    if orig_size != new_size:
         # class_token and dist_token are kept unchanged
         extra_tokens = pos_embed_checkpoint[:, :num_extra_tokens]
         # only the position tokens are interpolated
@@ -298,8 +320,8 @@ def interpolate_pos_embed(pos_embed_checkpoint, visual_encoder):
             pos_tokens, size=(new_size, new_size), mode='bicubic', align_corners=False)
         pos_tokens = pos_tokens.permute(0, 2, 3, 1).flatten(1, 2)
         new_pos_embed = torch.cat((extra_tokens, pos_tokens), dim=1)
-        print('reshape position embedding from %d to %d'%(orig_size ** 2,new_size ** 2))
-        
-        return new_pos_embed    
+        print('reshape position embedding from %d to %d' % (orig_size ** 2, new_size ** 2))
+
+        return new_pos_embed
     else:
         return pos_embed_checkpoint
