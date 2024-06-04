@@ -112,7 +112,7 @@ class Mlp(nn.Module):
 
 class Attention(nn.Module):
     # 可变窗口注意力 VSWAttention
-    def __init__(self, dim, num_heads, qkv_bias=True, qk_scale=None, attn_drop=0., proj_drop=0., img_size=(1,1), out_dim=None, window_size=1):
+    def __init__(self, dim, num_heads=8, qkv_bias=True, qk_scale=None, attn_drop=0., proj_drop=0., img_size=(1,1), out_dim=None, window_size=1):
         super().__init__()
         self.img_size = to_2tuple(img_size)
         self.num_heads = num_heads
@@ -203,7 +203,7 @@ class Attention(nn.Module):
         # self.register_buffer('base_coords', window_reference+coords)
         # self.register_buffer('coords', coords)
 
-    def forward(self, x):
+    def forward(self, x, register_hook=False):
         b, _, h, w = x.shape
         shortcut = x
         assert h == self.img_size[0]
