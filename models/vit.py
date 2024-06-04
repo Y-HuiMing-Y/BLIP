@@ -204,8 +204,8 @@ class Attention(nn.Module):
         # self.register_buffer('coords', coords)
 
     def forward(self, x, register_hook=False):
-        print("_____x_____", x)
-        b, _, h, w = x.shape
+        # print("_____x_____", x)
+        b, h, w = x.shape
         shortcut = x
         assert h == self.img_size[0]
         assert w == self.img_size[1]
