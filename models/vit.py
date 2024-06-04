@@ -342,7 +342,7 @@ class Attention(nn.Module):
         relative_position_index = relative_coords.sum(-1)
         return relative_position_index
 
-    def forward(self, x):
+    def forward(self, x, register_hook=False):
         B, C, H, W = x.shape
         qkv = self.qkv(x).reshape(B, 3, self.num_heads, C // self.num_heads, H, W)
         q, k, v = qkv[:, 0], qkv[:, 1], qkv[:, 2]  # Decompose the combined tensor into q, k, v
