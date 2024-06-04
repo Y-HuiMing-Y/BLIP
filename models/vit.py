@@ -203,7 +203,8 @@ class Attention(nn.Module):
         # self.register_buffer('base_coords', window_reference+coords)
         # self.register_buffer('coords', coords)
 
-    def forward(self, x, register_hook=False):
+    def forward(self, x):
+        print("_____x_____", x)
         b, _, h, w = x.shape
         shortcut = x
         assert h == self.img_size[0]
