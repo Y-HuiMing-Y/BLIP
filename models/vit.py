@@ -53,312 +53,271 @@ class Mlp(nn.Module):
         return x
 
 
-# class Attention(nn.Module):
-#     # MultiHeadAttention 多头自注意力模块
-#     def __init__(self, dim, num_heads=8, qkv_bias=False, qk_scale=None, attn_drop=0., proj_drop=0.):
-#         # dim：输入维度，num_heads：多头注意力头数，qk_scale：缩放因子,
-#         super().__init__()
-#         self.num_heads = num_heads
-#         head_dim = dim // num_heads  # head_dim表示每个头的维度
-#         # NOTE scale factor was wrong in my original version, can set manually to be compat with prev weights
-#         self.scale = qk_scale or head_dim ** -0.5  # 如果没有提供缩放因子，则使用head_dim的倒数平方根作为缩放因子
-#         self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
-#         # 一个线性变换层，将输入特征映射到query、key、value的空间。它的输出维度是 dim * 3，因为我们需要为每个头生成 Q、K 和 V
-#         self.attn_drop = nn.Dropout(attn_drop)
-#         # self.attn_drop 是一个 dropout 层，用于在计算注意力权重时随机丢弃一些信息，以防止过拟合。
-#         self.proj = nn.Linear(dim, dim)
-#         # self.proj 是一个线性变换层，用于将多头注意力的输出映射回原始维度 dim
-#         self.proj_drop = nn.Dropout(proj_drop)
-#         # self.proj_drop 是一个 dropout 层，用于在投影过程中随机丢弃一些信息，以防止过拟合
-#         self.attn_gradients = None
-#         self.attention_map = None
-#         # self.attn_gradients 和 self.attention_map 是用于保存注意力梯度和注意力图的变量，通常用于调试和可视化
-#
-#     def save_attn_gradients(self, attn_gradients):
-#         self.attn_gradients = attn_gradients
-#
-#     def get_attn_gradients(self):
-#         return self.attn_gradients
-#
-#     def save_attention_map(self, attention_map):
-#         self.attention_map = attention_map
-#
-#     def get_attention_map(self):
-#         return self.attention_map
-#
-#     def forward(self, x, register_hook=False):
-#         B, N, C = x.shape   # 获取输入张量 x 的形状信息，B 表示批量大小，N 表示序列长度，C 表示特征维度
-#         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
-#         q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy (cannot use tensor as tuple)
-#
-#         attn = (q @ k.transpose(-2, -1)) * self.scale
-#         attn = attn.softmax(dim=-1)
-#         attn = self.attn_drop(attn)
-#         # 计算注意力分数，首先计算Q和K的乘积，然后进行缩放。接着应用 softmax 函数得到注意力权重，并通过 dropout 层处理以减少过拟合
-#
-#         if register_hook:
-#             self.save_attention_map(attn)
-#             attn.register_hook(self.save_attn_gradients)
-#             # 如果 register_hook 为 True，表示要记录注意力权重和梯度。则调用 save_attention_map 方法记录注意力权重，
-#             # 并调用 save_attn_gradients 方法注册钩子以保存注意力梯度
-#
-#         x = (attn @ v).transpose(1, 2).reshape(B, N, C)
-#         x = self.proj(x)
-#         x = self.proj_drop(x)
-#         # 使用注意力权重对值进行加权求和，然后将结果重排并重新形状为 (B, N, C)。
-#         # 接着通过投影层 self.proj 进行线性变换，并通过 dropout 层处理以减少过拟合
-#         return x
-
-
-# class Attention(nn.Module):
-#     # 可变窗口注意力 VSWAttention
-#     def __init__(self, dim, num_heads=8, qkv_bias=True, qk_scale=None, attn_drop=0., proj_drop=0., img_size=(1,1), out_dim=None, window_size=1):
-#         super().__init__()
-#         self.img_size = to_2tuple(img_size)
-#         self.num_heads = num_heads
-#         self.dim = dim
-#         self.out_dim = out_dim or dim
-#         self.relative_pos_embedding = True
-#         head_dim = dim // self.num_heads
-#         self.ws = window_size
-#         self.shift_size = 0
-#
-#         self.padding_bottom = (self.ws - self.img_size[0] % self.ws) % self.ws
-#         self.padding_right = (self.ws - self.img_size[1] % self.ws) % self.ws
-#
-#         self.sampling_offsets = nn.Sequential(
-#             nn.AvgPool2d(kernel_size=window_size, stride=window_size),
-#             nn.LeakyReLU(),
-#             nn.Conv2d(dim, self.num_heads * 2, kernel_size=1, stride=1)
-#         )
-#         self.sampling_scales = nn.Sequential(
-#             nn.AvgPool2d(kernel_size=window_size, stride=window_size),
-#             nn.LeakyReLU(),
-#             nn.Conv2d(dim, self.num_heads * 2, kernel_size=1, stride=1)
-#         )
-#
-#         self.scale = qk_scale or head_dim ** -0.5
-#
-#         self.qkv = nn.Conv2d(dim, out_dim * 3, 1, bias=qkv_bias)
-#         # self.kv = nn.Conv2d(dim, dim*2, 1, bias=False)
-#
-#         self.attn_drop = nn.Dropout(attn_drop)
-#         self.proj = nn.Conv2d(out_dim, out_dim, 1)
-#         self.proj_drop = nn.Dropout(proj_drop)
-#
-#         if self.relative_pos_embedding:
-#             # define a parameter table of relative position bias
-#             self.relative_position_bias_table = nn.Parameter(
-#                 torch.zeros((window_size + window_size - 1) * (window_size + window_size - 1),
-#                             num_heads))  # 2*Wh-1 * 2*Ww-1, nH
-#
-#             # get pair-wise relative position index for each token inside the window
-#             coords_h = torch.arange(self.ws)
-#             coords_w = torch.arange(self.ws)
-#             coords = torch.stack(torch.meshgrid([coords_h, coords_w]))  # 2, Wh, Ww
-#             coords_flatten = torch.flatten(coords, 1)  # 2, Wh*Ww
-#             relative_coords = coords_flatten[:, :, None] - coords_flatten[:, None, :]  # 2, Wh*Ww, Wh*Ww
-#             relative_coords = relative_coords.permute(1, 2, 0).contiguous()  # Wh*Ww, Wh*Ww, 2
-#             relative_coords[:, :, 0] += self.ws - 1  # shift to start from 0
-#             relative_coords[:, :, 1] += self.ws - 1
-#             relative_coords[:, :, 0] *= 2 * self.ws - 1
-#             relative_position_index = relative_coords.sum(-1)  # Wh*Ww, Wh*Ww
-#             self.register_buffer("relative_position_index", relative_position_index)
-#
-#             trunc_normal_(self.relative_position_bias_table, std=.02)
-#             print('The relative_pos_embedding is used')
-#
-#         h, w = self.img_size
-#         h, w = h + self.shift_size + self.padding_bottom, w + self.shift_size + self.padding_right
-#         image_reference_w = torch.linspace(-1, 1, w)
-#         image_reference_h = torch.linspace(-1, 1, h)
-#         image_reference = torch.stack(torch.meshgrid(image_reference_w, image_reference_h), 0).permute(0, 2,
-#                                                                                                        1).unsqueeze(
-#             0)  # 2, h, w
-#         window_reference = nn.functional.avg_pool2d(image_reference, kernel_size=self.ws)
-#         window_num_h, window_num_w = window_reference.shape[-2:]
-#         window_reference = window_reference.reshape(1, 2, window_num_h, 1, window_num_w, 1)
-#
-#         base_coords_h = torch.arange(self.ws) * 2 * self.ws / self.ws / (h - 1)
-#         base_coords_h = (base_coords_h - base_coords_h.mean())
-#         base_coords_w = torch.arange(self.ws) * 2 * self.ws / self.ws / (w - 1)
-#         base_coords_w = (base_coords_w - base_coords_w.mean())
-#
-#         expanded_base_coords_h = base_coords_h.unsqueeze(dim=0).repeat(window_num_h, 1)
-#         assert expanded_base_coords_h.shape[0] == window_num_h
-#         assert expanded_base_coords_h.shape[1] == self.ws
-#         expanded_base_coords_w = base_coords_w.unsqueeze(dim=0).repeat(window_num_w, 1)
-#         assert expanded_base_coords_w.shape[0] == window_num_w
-#         assert expanded_base_coords_w.shape[1] == self.ws
-#         expanded_base_coords_h = expanded_base_coords_h.reshape(-1)
-#         expanded_base_coords_w = expanded_base_coords_w.reshape(-1)
-#         coords = torch.stack(torch.meshgrid(expanded_base_coords_w, expanded_base_coords_h), 0).permute(0, 2,
-#                                                                                                         1).reshape(1, 2,
-#                                                                                                                    window_num_h,
-#                                                                                                                    self.ws,
-#                                                                                                                    window_num_w,
-#                                                                                                                    self.ws)
-#         self.base_coords = (window_reference + coords).cuda()
-#         self.coords = coords.cuda()
-#         # self.register_buffer('base_coords', window_reference+coords)
-#         # self.register_buffer('coords', coords)
-#
-#     def forward(self, x, register_hook=False):
-#         # print("_____x_____", x)
-#         b, _, h, w = x.shape
-#         shortcut = x
-#         assert h == self.img_size[0]
-#         assert w == self.img_size[1]
-#
-#         x = torch.nn.functional.pad(x, (self.shift_size, self.padding_right, self.shift_size, self.padding_bottom))
-#         window_num_h, window_num_w = self.base_coords.shape[-4], self.base_coords.shape[-2]
-#
-#         coords = self.base_coords.repeat(b * self.num_heads, 1, 1, 1, 1, 1)
-#         sampling_offsets = self.sampling_offsets(x)
-#         num_predict_total = b * self.num_heads
-#         sampling_offsets = sampling_offsets.reshape(num_predict_total, 2, window_num_h, window_num_w)
-#         sampling_offsets[:, 0, ...] = sampling_offsets[:, 0, ...] / (w // self.ws)
-#         sampling_offsets[:, 1, ...] = sampling_offsets[:, 1, ...] / (h // self.ws)
-#
-#         sampling_scales = self.sampling_scales(x)  # B, heads*2, h // window_size, w // window_size
-#         sampling_scales = sampling_scales.reshape(num_predict_total, 2, window_num_h, window_num_w)
-#
-#         coords = coords + self.coords * sampling_scales[:, :, :, None, :, None] + sampling_offsets[:, :, :, None, :,
-#                                                                                   None]
-#         sample_coords = coords.permute(0, 2, 3, 4, 5, 1).reshape(num_predict_total, self.ws * window_num_h,
-#                                                                  self.ws * window_num_w, 2)
-#
-#         qkv = self.qkv(shortcut).reshape(b, 3, self.num_heads, self.out_dim // self.num_heads, h, w).transpose(1,
-#                                                                                                                0).reshape(
-#             3 * b * self.num_heads, self.out_dim // self.num_heads, h, w)
-#         qkv = torch.nn.functional.pad(qkv, (
-#         self.shift_size, self.padding_right, self.shift_size, self.padding_bottom)).reshape(3, b * self.num_heads,
-#                                                                                             self.out_dim // self.num_heads,
-#                                                                                             h + self.shift_size + self.padding_bottom,
-#                                                                                             w + self.shift_size + self.padding_right)
-#         q, k, v = qkv[0], qkv[1], qkv[2]
-#         k_selected = F.grid_sample(
-#             k.reshape(num_predict_total, self.out_dim // self.num_heads, h + self.shift_size + self.padding_bottom,
-#                       w + self.shift_size + self.padding_right),
-#             grid=sample_coords, padding_mode='zeros', align_corners=True
-#         ).reshape(b * self.num_heads, self.out_dim // self.num_heads, h + self.shift_size + self.padding_bottom,
-#                   w + self.shift_size + self.padding_right)
-#         v_selected = F.grid_sample(
-#             v.reshape(num_predict_total, self.out_dim // self.num_heads, h + self.shift_size + self.padding_bottom,
-#                       w + self.shift_size + self.padding_right),
-#             grid=sample_coords, padding_mode='zeros', align_corners=True
-#         ).reshape(b * self.num_heads, self.out_dim // self.num_heads, h + self.shift_size + self.padding_bottom,
-#                   w + self.shift_size + self.padding_right)
-#
-#         q = q.reshape(b, self.num_heads, self.out_dim // self.num_heads, window_num_h, self.ws, window_num_w,
-#                       self.ws).permute(0, 3, 5, 1, 4, 6, 2).reshape(b * window_num_h * window_num_w, self.num_heads,
-#                                                                     self.ws * self.ws, self.out_dim // self.num_heads)
-#         k = k_selected.reshape(b, self.num_heads, self.out_dim // self.num_heads, window_num_h, self.ws, window_num_w,
-#                                self.ws).permute(0, 3, 5, 1, 4, 6, 2).reshape(b * window_num_h * window_num_w,
-#                                                                              self.num_heads, self.ws * self.ws,
-#                                                                              self.out_dim // self.num_heads)
-#         v = v_selected.reshape(b, self.num_heads, self.out_dim // self.num_heads, window_num_h, self.ws, window_num_w,
-#                                self.ws).permute(0, 3, 5, 1, 4, 6, 2).reshape(b * window_num_h * window_num_w,
-#                                                                              self.num_heads, self.ws * self.ws,
-#                                                                              self.out_dim // self.num_heads)
-#
-#         dots = (q @ k.transpose(-2, -1)) * self.scale
-#
-#         if self.relative_pos_embedding:
-#             relative_position_bias = self.relative_position_bias_table[self.relative_position_index.view(-1)].view(
-#                 self.ws * self.ws, self.ws * self.ws, -1)  # Wh*Ww,Wh*Ww,nH
-#             relative_position_bias = relative_position_bias.permute(2, 0, 1).contiguous()  # nH, Wh*Ww, Wh*Ww
-#             dots += relative_position_bias.unsqueeze(0)
-#
-#         attn = dots.softmax(dim=-1)
-#         x = attn @ v
-#
-#         x = rearrange(x, '(b hh ww) h (ws1 ws2) d -> b (h d) (hh ws1) (ww ws2)', h=self.num_heads, b=b, hh=window_num_h, ww=window_num_w, ws1=self.ws, ws2=self.ws)
-#         x = x[:, :, self.shift_size:h + self.shift_size, self.shift_size:w + self.shift_size]
-#
-#         x = self.proj(x)
-#         x = self.proj_drop(x)
-#
-#         return x
-#
-#     def _reset_parameters(self):
-#         nn.init.constant_(self.sampling_offsets[-1].weight, 0.)
-#         nn.init.constant_(self.sampling_offsets[-1].bias, 0.)
-#         nn.init.constant_(self.sampling_scales[-1].weight, 0.)
-#         nn.init.constant_(self.sampling_scales[-1].bias, 0.)
-#
-#     def flops(self, ):
-#         N = self.ws * self.ws
-#         M = self.ws * self.ws
-#         # calculate flops for 1 window with token length of N
-#         flops = 0
-#         # qkv = self.qkv(x)
-#         flops += N * self.dim * 3 * self.dim
-#         # attn = (q @ k.transpose(-2, -1))
-#         flops += self.num_heads * N * (self.dim // self.num_heads) * M
-#         #  x = (attn @ v)
-#         flops += self.num_heads * N * M * (self.dim // self.num_heads)
-#         # x = self.proj(x)
-#         flops += N * self.dim * self.dim
-#         h, w = self.img_size[0] + self.shift_size + self.padding_bottom, self.img_size[
-#             1] + self.shift_size + self.padding_right
-#         flops *= (h / self.ws * w / self.ws)
-#
-#         # for sampling
-#         flops_sampling = 0
-#         # pooling
-#         flops_sampling += h * w * self.dim
-#         # regressing the shift and scale
-#         flops_sampling += 2 * (h / self.ws + w / self.ws) * self.num_heads * 2 * self.dim
-#         # calculating the coords
-#         flops_sampling += h / self.ws * self.ws * w / self.ws * self.ws * 2
-#         # grid sampling attended features
-#         flops_sampling += h / self.ws * self.ws * w / self.ws * self.ws * self.dim
-#
-#         flops += flops_sampling
-#
-#         return flops
-
 class Attention(nn.Module):
-    # 可变窗口注意力 VSWAttention
-    def __init__(self, dim, num_heads=8, qkv_bias=True, qk_scale=None, attn_drop=0., proj_drop=0., window_size=1):
+    # MultiHeadAttention 多头自注意力模块
+    def __init__(self, dim, num_heads=8, qkv_bias=False, qk_scale=None, attn_drop=0., proj_drop=0.):
+        # dim：输入维度，num_heads：多头注意力头数，qk_scale：缩放因子,
         super().__init__()
         self.num_heads = num_heads
-        self.scale = qk_scale or (dim // num_heads) ** -0.5
-        self.ws = window_size
-        self.qkv = nn.Conv2d(dim, dim * 3, 1, bias=qkv_bias)
+        head_dim = dim // num_heads  # head_dim表示每个头的维度
+        # NOTE scale factor was wrong in my original version, can set manually to be compat with prev weights
+        self.scale = qk_scale or head_dim ** -0.5  # 如果没有提供缩放因子，则使用head_dim的倒数平方根作为缩放因子
+        self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
+        # 一个线性变换层，将输入特征映射到query、key、value的空间。它的输出维度是 dim * 3，因为我们需要为每个头生成 Q、K 和 V
         self.attn_drop = nn.Dropout(attn_drop)
-        self.proj = nn.Conv2d(dim, dim, 1)
+        # self.attn_drop 是一个 dropout 层，用于在计算注意力权重时随机丢弃一些信息，以防止过拟合。
+        self.proj = nn.Linear(dim, dim)
+        # self.proj 是一个线性变换层，用于将多头注意力的输出映射回原始维度 dim
         self.proj_drop = nn.Dropout(proj_drop)
-        self.relative_position_bias = nn.Parameter(torch.zeros((2 * window_size - 1)**2, num_heads))
-        self.register_buffer("relative_position_index", self.calculate_relative_position_index(window_size))
+        # self.proj_drop 是一个 dropout 层，用于在投影过程中随机丢弃一些信息，以防止过拟合
+        self.attn_gradients = None
+        self.attention_map = None
+        # self.attn_gradients 和 self.attention_map 是用于保存注意力梯度和注意力图的变量，通常用于调试和可视化
 
-    def calculate_relative_position_index(self, ws):
-        # 计算相对位置索引
-        coords = torch.stack(torch.meshgrid(torch.arange(ws), torch.arange(ws), indexing='ij'), 0)
-        coords_flatten = torch.flatten(coords, 1)
-        relative_coords = coords_flatten[:, :, None] - coords_flatten[:, None, :]
-        relative_coords = relative_coords.permute(1, 2, 0).contiguous()
-        relative_position_index = relative_coords.sum(-1)
-        return relative_position_index
+    def save_attn_gradients(self, attn_gradients):
+        self.attn_gradients = attn_gradients
+
+    def get_attn_gradients(self):
+        return self.attn_gradients
+
+    def save_attention_map(self, attention_map):
+        self.attention_map = attention_map
+
+    def get_attention_map(self):
+        return self.attention_map
 
     def forward(self, x, register_hook=False):
-        B, C, H, W = x.shape
-        qkv = self.qkv(x).reshape(B, 3, self.num_heads, C // self.num_heads, H, W)
-        q, k, v = qkv[:, 0], qkv[:, 1], qkv[:, 2]  # Decompose the combined tensor into q, k, v
+        B, N, C = x.shape   # 获取输入张量 x 的形状信息，B 表示批量大小，N 表示序列长度，C 表示特征维度
+        qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
+        q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy (cannot use tensor as tuple)
 
-        # Attention mechanism
         attn = (q @ k.transpose(-2, -1)) * self.scale
-        attn += self.relative_position_bias[self.relative_position_index.view(-1)].view(H * W, H * W, -1).permute(2, 0, 1)
         attn = attn.softmax(dim=-1)
         attn = self.attn_drop(attn)
+        # 计算注意力分数，首先计算Q和K的乘积，然后进行缩放。接着应用 softmax 函数得到注意力权重，并通过 dropout 层处理以减少过拟合
 
-        # Projection and output
-        x = (attn @ v).reshape(B, self.num_heads, C // self.num_heads, H, W).sum(dim=1)
+        if register_hook:
+            self.save_attention_map(attn)
+            attn.register_hook(self.save_attn_gradients)
+            # 如果 register_hook 为 True，表示要记录注意力权重和梯度。则调用 save_attention_map 方法记录注意力权重，
+            # 并调用 save_attn_gradients 方法注册钩子以保存注意力梯度
+
+        x = (attn @ v).transpose(1, 2).reshape(B, N, C)
         x = self.proj(x)
         x = self.proj_drop(x)
+        # 使用注意力权重对值进行加权求和，然后将结果重排并重新形状为 (B, N, C)。
+        # 接着通过投影层 self.proj 进行线性变换，并通过 dropout 层处理以减少过拟合
         return x
 
+
+class VSWAttention(nn.Module):
+    # 可变窗口注意力 VSWAttention
+    def __init__(self, dim, num_heads=8, qkv_bias=True, qk_scale=None, attn_drop=0., proj_drop=0., img_size=(1,1), out_dim=None, window_size=1):
+        super().__init__()
+        self.img_size = to_2tuple(img_size)
+        self.num_heads = num_heads
+        self.dim = dim
+        self.out_dim = out_dim or dim
+        self.relative_pos_embedding = True
+        head_dim = dim // self.num_heads
+        self.ws = window_size
+        self.shift_size = 0
+
+        self.padding_bottom = (self.ws - self.img_size[0] % self.ws) % self.ws
+        self.padding_right = (self.ws - self.img_size[1] % self.ws) % self.ws
+
+        self.sampling_offsets = nn.Sequential(
+            nn.AvgPool2d(kernel_size=window_size, stride=window_size),
+            nn.LeakyReLU(),
+            nn.Conv2d(dim, self.num_heads * 2, kernel_size=1, stride=1)
+        )
+        self.sampling_scales = nn.Sequential(
+            nn.AvgPool2d(kernel_size=window_size, stride=window_size),
+            nn.LeakyReLU(),
+            nn.Conv2d(dim, self.num_heads * 2, kernel_size=1, stride=1)
+        )
+
+        self.scale = qk_scale or head_dim ** -0.5
+
+        self.qkv = nn.Conv2d(dim, out_dim * 3, 1, bias=qkv_bias)
+        # self.kv = nn.Conv2d(dim, dim*2, 1, bias=False)
+
+        self.attn_drop = nn.Dropout(attn_drop)
+        self.proj = nn.Conv2d(out_dim, out_dim, 1)
+        self.proj_drop = nn.Dropout(proj_drop)
+
+        if self.relative_pos_embedding:
+            # define a parameter table of relative position bias
+            self.relative_position_bias_table = nn.Parameter(
+                torch.zeros((window_size + window_size - 1) * (window_size + window_size - 1),
+                            num_heads))  # 2*Wh-1 * 2*Ww-1, nH
+
+            # get pair-wise relative position index for each token inside the window
+            coords_h = torch.arange(self.ws)
+            coords_w = torch.arange(self.ws)
+            coords = torch.stack(torch.meshgrid([coords_h, coords_w]))  # 2, Wh, Ww
+            coords_flatten = torch.flatten(coords, 1)  # 2, Wh*Ww
+            relative_coords = coords_flatten[:, :, None] - coords_flatten[:, None, :]  # 2, Wh*Ww, Wh*Ww
+            relative_coords = relative_coords.permute(1, 2, 0).contiguous()  # Wh*Ww, Wh*Ww, 2
+            relative_coords[:, :, 0] += self.ws - 1  # shift to start from 0
+            relative_coords[:, :, 1] += self.ws - 1
+            relative_coords[:, :, 0] *= 2 * self.ws - 1
+            relative_position_index = relative_coords.sum(-1)  # Wh*Ww, Wh*Ww
+            self.register_buffer("relative_position_index", relative_position_index)
+
+            trunc_normal_(self.relative_position_bias_table, std=.02)
+            print('The relative_pos_embedding is used')
+
+        h, w = self.img_size
+        h, w = h + self.shift_size + self.padding_bottom, w + self.shift_size + self.padding_right
+        image_reference_w = torch.linspace(-1, 1, w)
+        image_reference_h = torch.linspace(-1, 1, h)
+        image_reference = torch.stack(torch.meshgrid(image_reference_w, image_reference_h), 0).permute(0, 2,
+                                                                                                       1).unsqueeze(
+            0)  # 2, h, w
+        window_reference = nn.functional.avg_pool2d(image_reference, kernel_size=self.ws)
+        window_num_h, window_num_w = window_reference.shape[-2:]
+        window_reference = window_reference.reshape(1, 2, window_num_h, 1, window_num_w, 1)
+
+        base_coords_h = torch.arange(self.ws) * 2 * self.ws / self.ws / (h - 1)
+        base_coords_h = (base_coords_h - base_coords_h.mean())
+        base_coords_w = torch.arange(self.ws) * 2 * self.ws / self.ws / (w - 1)
+        base_coords_w = (base_coords_w - base_coords_w.mean())
+
+        expanded_base_coords_h = base_coords_h.unsqueeze(dim=0).repeat(window_num_h, 1)
+        assert expanded_base_coords_h.shape[0] == window_num_h
+        assert expanded_base_coords_h.shape[1] == self.ws
+        expanded_base_coords_w = base_coords_w.unsqueeze(dim=0).repeat(window_num_w, 1)
+        assert expanded_base_coords_w.shape[0] == window_num_w
+        assert expanded_base_coords_w.shape[1] == self.ws
+        expanded_base_coords_h = expanded_base_coords_h.reshape(-1)
+        expanded_base_coords_w = expanded_base_coords_w.reshape(-1)
+        coords = torch.stack(torch.meshgrid(expanded_base_coords_w, expanded_base_coords_h), 0).permute(0, 2,
+                                                                                                        1).reshape(1, 2,
+                                                                                                                   window_num_h,
+                                                                                                                   self.ws,
+                                                                                                                   window_num_w,
+                                                                                                                   self.ws)
+        self.base_coords = (window_reference + coords).cuda()
+        self.coords = coords.cuda()
+        # self.register_buffer('base_coords', window_reference+coords)
+        # self.register_buffer('coords', coords)
+
+    def forward(self, x, register_hook=False):
+        # print("_____x_____", x)
+        b, _, h, w = x.shape
+        shortcut = x
+        assert h == self.img_size[0]
+        assert w == self.img_size[1]
+
+        x = torch.nn.functional.pad(x, (self.shift_size, self.padding_right, self.shift_size, self.padding_bottom))
+        window_num_h, window_num_w = self.base_coords.shape[-4], self.base_coords.shape[-2]
+
+        coords = self.base_coords.repeat(b * self.num_heads, 1, 1, 1, 1, 1)
+        sampling_offsets = self.sampling_offsets(x)
+        num_predict_total = b * self.num_heads
+        sampling_offsets = sampling_offsets.reshape(num_predict_total, 2, window_num_h, window_num_w)
+        sampling_offsets[:, 0, ...] = sampling_offsets[:, 0, ...] / (w // self.ws)
+        sampling_offsets[:, 1, ...] = sampling_offsets[:, 1, ...] / (h // self.ws)
+
+        sampling_scales = self.sampling_scales(x)  # B, heads*2, h // window_size, w // window_size
+        sampling_scales = sampling_scales.reshape(num_predict_total, 2, window_num_h, window_num_w)
+
+        coords = coords + self.coords * sampling_scales[:, :, :, None, :, None] + sampling_offsets[:, :, :, None, :,
+                                                                                  None]
+        sample_coords = coords.permute(0, 2, 3, 4, 5, 1).reshape(num_predict_total, self.ws * window_num_h,
+                                                                 self.ws * window_num_w, 2)
+
+        qkv = self.qkv(shortcut).reshape(b, 3, self.num_heads, self.out_dim // self.num_heads, h, w).transpose(1,
+                                                                                                               0).reshape(
+            3 * b * self.num_heads, self.out_dim // self.num_heads, h, w)
+        qkv = torch.nn.functional.pad(qkv, (
+        self.shift_size, self.padding_right, self.shift_size, self.padding_bottom)).reshape(3, b * self.num_heads,
+                                                                                            self.out_dim // self.num_heads,
+                                                                                            h + self.shift_size + self.padding_bottom,
+                                                                                            w + self.shift_size + self.padding_right)
+        q, k, v = qkv[0], qkv[1], qkv[2]
+        k_selected = F.grid_sample(
+            k.reshape(num_predict_total, self.out_dim // self.num_heads, h + self.shift_size + self.padding_bottom,
+                      w + self.shift_size + self.padding_right),
+            grid=sample_coords, padding_mode='zeros', align_corners=True
+        ).reshape(b * self.num_heads, self.out_dim // self.num_heads, h + self.shift_size + self.padding_bottom,
+                  w + self.shift_size + self.padding_right)
+        v_selected = F.grid_sample(
+            v.reshape(num_predict_total, self.out_dim // self.num_heads, h + self.shift_size + self.padding_bottom,
+                      w + self.shift_size + self.padding_right),
+            grid=sample_coords, padding_mode='zeros', align_corners=True
+        ).reshape(b * self.num_heads, self.out_dim // self.num_heads, h + self.shift_size + self.padding_bottom,
+                  w + self.shift_size + self.padding_right)
+
+        q = q.reshape(b, self.num_heads, self.out_dim // self.num_heads, window_num_h, self.ws, window_num_w,
+                      self.ws).permute(0, 3, 5, 1, 4, 6, 2).reshape(b * window_num_h * window_num_w, self.num_heads,
+                                                                    self.ws * self.ws, self.out_dim // self.num_heads)
+        k = k_selected.reshape(b, self.num_heads, self.out_dim // self.num_heads, window_num_h, self.ws, window_num_w,
+                               self.ws).permute(0, 3, 5, 1, 4, 6, 2).reshape(b * window_num_h * window_num_w,
+                                                                             self.num_heads, self.ws * self.ws,
+                                                                             self.out_dim // self.num_heads)
+        v = v_selected.reshape(b, self.num_heads, self.out_dim // self.num_heads, window_num_h, self.ws, window_num_w,
+                               self.ws).permute(0, 3, 5, 1, 4, 6, 2).reshape(b * window_num_h * window_num_w,
+                                                                             self.num_heads, self.ws * self.ws,
+                                                                             self.out_dim // self.num_heads)
+
+        dots = (q @ k.transpose(-2, -1)) * self.scale
+
+        if self.relative_pos_embedding:
+            relative_position_bias = self.relative_position_bias_table[self.relative_position_index.view(-1)].view(
+                self.ws * self.ws, self.ws * self.ws, -1)  # Wh*Ww,Wh*Ww,nH
+            relative_position_bias = relative_position_bias.permute(2, 0, 1).contiguous()  # nH, Wh*Ww, Wh*Ww
+            dots += relative_position_bias.unsqueeze(0)
+
+        attn = dots.softmax(dim=-1)
+        x = attn @ v
+
+        x = rearrange(x, '(b hh ww) h (ws1 ws2) d -> b (h d) (hh ws1) (ww ws2)', h=self.num_heads, b=b, hh=window_num_h, ww=window_num_w, ws1=self.ws, ws2=self.ws)
+        x = x[:, :, self.shift_size:h + self.shift_size, self.shift_size:w + self.shift_size]
+
+        x = self.proj(x)
+        x = self.proj_drop(x)
+
+        return x
+
+    def _reset_parameters(self):
+        nn.init.constant_(self.sampling_offsets[-1].weight, 0.)
+        nn.init.constant_(self.sampling_offsets[-1].bias, 0.)
+        nn.init.constant_(self.sampling_scales[-1].weight, 0.)
+        nn.init.constant_(self.sampling_scales[-1].bias, 0.)
+
+    def flops(self, ):
+        N = self.ws * self.ws
+        M = self.ws * self.ws
+        # calculate flops for 1 window with token length of N
+        flops = 0
+        # qkv = self.qkv(x)
+        flops += N * self.dim * 3 * self.dim
+        # attn = (q @ k.transpose(-2, -1))
+        flops += self.num_heads * N * (self.dim // self.num_heads) * M
+        #  x = (attn @ v)
+        flops += self.num_heads * N * M * (self.dim // self.num_heads)
+        # x = self.proj(x)
+        flops += N * self.dim * self.dim
+        h, w = self.img_size[0] + self.shift_size + self.padding_bottom, self.img_size[
+            1] + self.shift_size + self.padding_right
+        flops *= (h / self.ws * w / self.ws)
+
+        # for sampling
+        flops_sampling = 0
+        # pooling
+        flops_sampling += h * w * self.dim
+        # regressing the shift and scale
+        flops_sampling += 2 * (h / self.ws + w / self.ws) * self.num_heads * 2 * self.dim
+        # calculating the coords
+        flops_sampling += h / self.ws * self.ws * w / self.ws * self.ws * 2
+        # grid sampling attended features
+        flops_sampling += h / self.ws * self.ws * w / self.ws * self.ws * self.dim
+
+        flops += flops_sampling
+
+        return flops
 
 
 class Block(nn.Module):
@@ -367,11 +326,11 @@ class Block(nn.Module):
                  drop_path=0., act_layer=nn.GELU, norm_layer=nn.LayerNorm, use_grad_checkpointing=False):
         super().__init__()
         self.norm1 = norm_layer(dim)
-        # self.attn = Attention(
-        #     dim, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop)
-        # VSWAttention
         self.attn = Attention(
-            dim, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop, window_size=7)
+            dim, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop)
+        # # VSWAttention
+        # self.attn = Attention(
+        #     dim, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop, window_size=7)
         # NOTE: drop path for stochastic depth, we shall see if this is better than dropout here
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         self.norm2 = norm_layer(dim)
