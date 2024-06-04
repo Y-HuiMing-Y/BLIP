@@ -34,7 +34,7 @@ class BLIP_Pretrain(nn.Module):
         """               
         super().__init__()
         
-        self.visual_encoder, vision_width = create_vit(vit,image_size, vit_grad_ckpt, vit_ckpt_layer, 0)
+        self.visual_encoder, vision_width = create_vit(vit, image_size, vit_grad_ckpt, vit_ckpt_layer, 0)
         
         if vit=='base':
             checkpoint = torch.hub.load_state_dict_from_url(
@@ -45,7 +45,7 @@ class BLIP_Pretrain(nn.Module):
         elif vit=='large':
             from timm.models.helpers import load_custom_pretrained
             from timm.models.vision_transformer import default_cfgs
-            load_custom_pretrained(self.visual_encoder,default_cfgs['vit_large_patch16_224_in21k'])        
+            load_custom_pretrained(self.visual_encoder, default_cfgs['vit_large_patch16_224_in21k'])
                
         self.tokenizer = init_tokenizer()   
         encoder_config = BertConfig.from_json_file(med_config)

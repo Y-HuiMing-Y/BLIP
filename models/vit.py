@@ -53,64 +53,65 @@ class Mlp(nn.Module):
         return x
 
 
+# class Attention(nn.Module):
+#     # MultiHeadAttention 多头自注意力模块
+#     def __init__(self, dim, num_heads=8, qkv_bias=False, qk_scale=None, attn_drop=0., proj_drop=0.):
+#         # dim：输入维度，num_heads：多头注意力头数，qk_scale：缩放因子,
+#         super().__init__()
+#         self.num_heads = num_heads
+#         head_dim = dim // num_heads  # head_dim表示每个头的维度
+#         # NOTE scale factor was wrong in my original version, can set manually to be compat with prev weights
+#         self.scale = qk_scale or head_dim ** -0.5  # 如果没有提供缩放因子，则使用head_dim的倒数平方根作为缩放因子
+#         self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
+#         # 一个线性变换层，将输入特征映射到query、key、value的空间。它的输出维度是 dim * 3，因为我们需要为每个头生成 Q、K 和 V
+#         self.attn_drop = nn.Dropout(attn_drop)
+#         # self.attn_drop 是一个 dropout 层，用于在计算注意力权重时随机丢弃一些信息，以防止过拟合。
+#         self.proj = nn.Linear(dim, dim)
+#         # self.proj 是一个线性变换层，用于将多头注意力的输出映射回原始维度 dim
+#         self.proj_drop = nn.Dropout(proj_drop)
+#         # self.proj_drop 是一个 dropout 层，用于在投影过程中随机丢弃一些信息，以防止过拟合
+#         self.attn_gradients = None
+#         self.attention_map = None
+#         # self.attn_gradients 和 self.attention_map 是用于保存注意力梯度和注意力图的变量，通常用于调试和可视化
+#
+#     def save_attn_gradients(self, attn_gradients):
+#         self.attn_gradients = attn_gradients
+#
+#     def get_attn_gradients(self):
+#         return self.attn_gradients
+#
+#     def save_attention_map(self, attention_map):
+#         self.attention_map = attention_map
+#
+#     def get_attention_map(self):
+#         return self.attention_map
+#
+#     def forward(self, x, register_hook=False):
+#         B, N, C = x.shape   # 获取输入张量 x 的形状信息，B 表示批量大小，N 表示序列长度，C 表示特征维度
+#         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
+#         q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy (cannot use tensor as tuple)
+#
+#         attn = (q @ k.transpose(-2, -1)) * self.scale
+#         attn = attn.softmax(dim=-1)
+#         attn = self.attn_drop(attn)
+#         # 计算注意力分数，首先计算Q和K的乘积，然后进行缩放。接着应用 softmax 函数得到注意力权重，并通过 dropout 层处理以减少过拟合
+#
+#         if register_hook:
+#             self.save_attention_map(attn)
+#             attn.register_hook(self.save_attn_gradients)
+#             # 如果 register_hook 为 True，表示要记录注意力权重和梯度。则调用 save_attention_map 方法记录注意力权重，
+#             # 并调用 save_attn_gradients 方法注册钩子以保存注意力梯度
+#
+#         x = (attn @ v).transpose(1, 2).reshape(B, N, C)
+#         x = self.proj(x)
+#         x = self.proj_drop(x)
+#         # 使用注意力权重对值进行加权求和，然后将结果重排并重新形状为 (B, N, C)。
+#         # 接着通过投影层 self.proj 进行线性变换，并通过 dropout 层处理以减少过拟合
+#         return x
+
+
 class Attention(nn.Module):
-    # MultiHeadAttention 多头自注意力模块
-    def __init__(self, dim, num_heads=8, qkv_bias=False, qk_scale=None, attn_drop=0., proj_drop=0.):
-        # dim：输入维度，num_heads：多头注意力头数，qk_scale：缩放因子,
-        super().__init__()
-        self.num_heads = num_heads
-        head_dim = dim // num_heads  # head_dim表示每个头的维度
-        # NOTE scale factor was wrong in my original version, can set manually to be compat with prev weights
-        self.scale = qk_scale or head_dim ** -0.5  # 如果没有提供缩放因子，则使用head_dim的倒数平方根作为缩放因子
-        self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
-        # 一个线性变换层，将输入特征映射到query、key、value的空间。它的输出维度是 dim * 3，因为我们需要为每个头生成 Q、K 和 V
-        self.attn_drop = nn.Dropout(attn_drop)
-        # self.attn_drop 是一个 dropout 层，用于在计算注意力权重时随机丢弃一些信息，以防止过拟合。
-        self.proj = nn.Linear(dim, dim)
-        # self.proj 是一个线性变换层，用于将多头注意力的输出映射回原始维度 dim
-        self.proj_drop = nn.Dropout(proj_drop)
-        # self.proj_drop 是一个 dropout 层，用于在投影过程中随机丢弃一些信息，以防止过拟合
-        self.attn_gradients = None
-        self.attention_map = None
-        # self.attn_gradients 和 self.attention_map 是用于保存注意力梯度和注意力图的变量，通常用于调试和可视化
-
-    def save_attn_gradients(self, attn_gradients):
-        self.attn_gradients = attn_gradients
-
-    def get_attn_gradients(self):
-        return self.attn_gradients
-
-    def save_attention_map(self, attention_map):
-        self.attention_map = attention_map
-
-    def get_attention_map(self):
-        return self.attention_map
-
-    def forward(self, x, register_hook=False):
-        B, N, C = x.shape   # 获取输入张量 x 的形状信息，B 表示批量大小，N 表示序列长度，C 表示特征维度
-        qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
-        q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy (cannot use tensor as tuple)
-
-        attn = (q @ k.transpose(-2, -1)) * self.scale
-        attn = attn.softmax(dim=-1)
-        attn = self.attn_drop(attn)
-        # 计算注意力分数，首先计算Q和K的乘积，然后进行缩放。接着应用 softmax 函数得到注意力权重，并通过 dropout 层处理以减少过拟合
-
-        if register_hook:
-            self.save_attention_map(attn)
-            attn.register_hook(self.save_attn_gradients)
-            # 如果 register_hook 为 True，表示要记录注意力权重和梯度。则调用 save_attention_map 方法记录注意力权重，
-            # 并调用 save_attn_gradients 方法注册钩子以保存注意力梯度
-
-        x = (attn @ v).transpose(1, 2).reshape(B, N, C)
-        x = self.proj(x)
-        x = self.proj_drop(x)
-        # 使用注意力权重对值进行加权求和，然后将结果重排并重新形状为 (B, N, C)。
-        # 接着通过投影层 self.proj 进行线性变换，并通过 dropout 层处理以减少过拟合
-        return x
-
-
-class VSAWindowAttention(nn.Module):
+    # 可变窗口注意力 VSWAttention
     def __init__(self, dim, num_heads, qkv_bias=True, qk_scale=None, attn_drop=0., proj_drop=0., img_size=(1,1), out_dim=None, window_size=1):
         super().__init__()
         self.img_size = to_2tuple(img_size)
@@ -324,11 +325,12 @@ class Block(nn.Module):
                  drop_path=0., act_layer=nn.GELU, norm_layer=nn.LayerNorm, use_grad_checkpointing=False):
         super().__init__()
         self.norm1 = norm_layer(dim)
+        # self.attn = Attention(
+        #     dim, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop)
+        # VSWAttention
         self.attn = Attention(
-            dim, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop)
-        # self.VSattn = VSAWindowAttention(
-        #     dim, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop,
-        #     img_size=224, out_dim=dim, window_size=7)
+            dim, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop,
+            img_size=224, out_dim=dim, window_size=7)
         # NOTE: drop path for stochastic depth, we shall see if this is better than dropout here
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         self.norm2 = norm_layer(dim)
