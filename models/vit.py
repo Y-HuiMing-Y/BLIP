@@ -87,6 +87,7 @@ class Attention(nn.Module):
         return self.attention_map
 
     def forward(self, x, register_hook=False):
+        print("x.shape=====", x.shape)
         B, N, C = x.shape   # 获取输入张量 x 的形状信息，B 表示批量大小，N 表示序列长度，C 表示特征维度
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
         q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy (cannot use tensor as tuple)
@@ -204,7 +205,8 @@ class VSWAttention(nn.Module):
         # self.register_buffer('coords', coords)
 
     def forward(self, x, register_hook=False):
-        # print("_____x_____", x)
+        print("_____x_____", x)
+        print("_____x.shape_____", x.shape)
         b, _, h, w = x.shape
         shortcut = x
         assert h == self.img_size[0]
@@ -377,30 +379,31 @@ class VisionTransformer(nn.Module):
         """
         super().__init__()
         self.num_features = self.embed_dim = embed_dim  # num_features for consistency with other models
-        norm_layer = norm_layer or partial(nn.LayerNorm, eps=1e-6)
+        norm_layer = norm_layer or partial(nn.LayerNorm, eps=1e-6)  # 若未传入归一化函数则采用LayerNorm
 
         self.patch_embed = PatchEmbed(
             img_size=img_size, patch_size=patch_size, in_chans=in_chans, embed_dim=embed_dim)
+        # img_size，in_chans规格的图像转成patch_size块维度为embed_dim的嵌入序列
 
-        num_patches = self.patch_embed.num_patches
+        num_patches = self.patch_embed.num_patches  # 获取patch_embed中的块数
 
-        self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
-        self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, embed_dim))
-        self.pos_drop = nn.Dropout(p=drop_rate)
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))  # 创建一个可训练的全零张量作为cls_token
+        self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, embed_dim))   # 创建一个可训练的全零张量作为位置嵌入
+        self.pos_drop = nn.Dropout(p=drop_rate)  # 创建Drop层，以概率p将输入张量的部分元素置零
 
-        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # stochastic depth decay rule
+        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # stochastic depth decay rule随机深度衰减规则
         self.blocks = nn.ModuleList([
             Block(
                 dim=embed_dim, num_heads=num_heads, mlp_ratio=mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
                 drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[i], norm_layer=norm_layer,
                 use_grad_checkpointing=(use_grad_checkpointing and i >= depth - ckpt_layer)
             )
-            for i in range(depth)])
-        self.norm = norm_layer(embed_dim)
+            for i in range(depth)])   # 定义Block的实例，每个 Block 实例代表 Transformer 模型中的一个编码器层
+        self.norm = norm_layer(embed_dim)   # 按输入维度embed_dim创建norm_layer归一化层
 
-        trunc_normal_(self.pos_embed, std=.02)
-        trunc_normal_(self.cls_token, std=.02)
-        self.apply(self._init_weights)
+        trunc_normal_(self.pos_embed, std=.02)  # 使用std=.02的标准差,截断正态分布来初始化位置嵌入（pos_embed）
+        trunc_normal_(self.cls_token, std=.02)  # 使用std=.02的标准差,截断正态分布来初始化cls令牌嵌入（cls_token）
+        self.apply(self._init_weights)  # 递归调用self._init_weights函数，来初始化模型的权重
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -410,35 +413,44 @@ class VisionTransformer(nn.Module):
         elif isinstance(m, nn.LayerNorm):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
+    '''
+    用于初始化模型的权重和归一化层的参数:
+    如果输入的模块 m 是线性层 (nn.Linear)，则使用截断正态分布初始化权重 (m.weight)，标准差为 0.02。
+    同时，如果该线性层有偏置项 (bias)，则将其初始化为零。
+    如果输入的模块 m 是归一化层 (nn.LayerNorm)，则将其偏置项初始化为零，将其缩放参数初始化为 1.0。
+    '''
 
     @torch.jit.ignore
     def no_weight_decay(self):
-        return {'pos_embed', 'cls_token'}
+        return {'pos_embed', 'cls_token'}   # 返回一个字典，其中包含不需要进行权重衰减的参数的名称
 
     def forward(self, x, register_blk=-1):
-        B = x.shape[0]
-        x = self.patch_embed(x)
+        B = x.shape[0]  # 提取x的0号位作为批量大小
+        x = self.patch_embed(x)  # 调用patch_embed对象将输入x转为嵌入序列
 
         cls_tokens = self.cls_token.expand(B, -1, -1)  # stole cls_tokens impl from Phil Wang, thanks
-        x = torch.cat((cls_tokens, x), dim=1)
+        # 扩展cls令牌的第一个维度为B，-1表示保持原维度不变
+        x = torch.cat((cls_tokens, x), dim=1)   # 将cls_tokens与输入张量x在维度1上进行拼接，即在序列维度上进行拼接
 
-        x = x + self.pos_embed[:, :x.size(1), :]
-        x = self.pos_drop(x)
-
+        x = x + self.pos_embed[:, :x.size(1), :]    # 将位置嵌入pos_embed直接加到输入张量x上
+        x = self.pos_drop(x)    # 调用pos_drop层，将x部分元素置零
+        # 至此，得到了一个带有cls令牌和位置嵌入的输入张量x
         for i, blk in enumerate(self.blocks):
-            x = blk(x, register_blk == i)
-        x = self.norm(x)
+            x = blk(x, register_blk == i)   # 对每个块应用一些个性化的操作
+        x = self.norm(x)    # 对x进行归一化操作
 
         return x
 
     @torch.jit.ignore()
     def load_pretrained(self, checkpoint_path, prefix=''):
-        _load_weights(self, checkpoint_path, prefix)
+        _load_weights(self, checkpoint_path, prefix)    # 加载权重
 
 
 @torch.no_grad()
 def _load_weights(model: VisionTransformer, checkpoint_path: str, prefix: str = ''):
-    """ Load weights from .npz checkpoints for official Google Brain Flax implementation
+    """
+    Load weights from .npz checkpoints for official Google Brain Flax implementation
+    从.npz检查点加载Google Brain flex官方实现的权重
     """
     import numpy as np
 
@@ -517,7 +529,8 @@ def _load_weights(model: VisionTransformer, checkpoint_path: str, prefix: str = 
 
 
 def interpolate_pos_embed(pos_embed_checkpoint, visual_encoder):
-    # interpolate position embedding
+    # interpolate position embedding 插入点嵌入
+    # 实现了对预训练的位置嵌入进行插值操作，以适应新模型结构的变化
     embedding_size = pos_embed_checkpoint.shape[-1]
     num_patches = visual_encoder.patch_embed.num_patches
     num_extra_tokens = visual_encoder.pos_embed.shape[-2] - num_patches

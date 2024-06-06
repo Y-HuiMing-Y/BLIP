@@ -93,9 +93,9 @@ class BLIP_Decoder(nn.Module):
         super().__init__()
 
         self.visual_encoder, vision_width = create_vit(vit, image_size, vit_grad_ckpt, vit_ckpt_layer)
-        self.tokenizer = init_tokenizer()
+        self.tokenizer = init_tokenizer()   # 初始化一个分词器
         med_config = BertConfig.from_json_file(med_config)
-        med_config.encoder_width = vision_width
+        med_config.encoder_width = vision_width    # 加载bert的配置文件med_config，并修改参数encode_width为vision_width
         self.text_decoder = BertLMHeadModel(config=med_config)
 
         self.prompt = prompt
@@ -174,7 +174,7 @@ def blip_decoder(pretrained='', **kwargs):
     model = BLIP_Decoder(**kwargs)
     if pretrained:
         model, msg = load_checkpoint(model, pretrained)
-        print(f"~~~~~Missing keys: {msg.missing_keys}")
+        print(f"!!!!Missing keys: {msg.missing_keys}")
         assert (len(msg.missing_keys) == 0)
     return model
 

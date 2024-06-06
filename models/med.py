@@ -812,7 +812,10 @@ class BertLMHeadModel(BertPreTrainedModel):
 
     _keys_to_ignore_on_load_unexpected = [r"pooler"]
     _keys_to_ignore_on_load_missing = [r"position_ids", r"predictions.decoder.bias"]
-
+    '''
+    定义了两个列表 _keys_to_ignore_on_load_unexpected 和 _keys_to_ignore_on_load_missing，
+    用于在加载预训练模型时忽略一些特定的参数键（keys）
+    '''
     def __init__(self, config):
         super().__init__(config)
 
