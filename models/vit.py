@@ -415,7 +415,7 @@ class VisionTransformer(nn.Module):
         super().__init__()
         self.num_features = self.embed_dim = embed_dim  # num_features for consistency with other models
         norm_layer = norm_layer or partial(nn.LayerNorm, eps=1e-6)  # 若未传入归一化函数则采用LayerNorm
-        self.SEAtt = SEAttention()
+        self.SEAtt = SEAttention(channel=in_chans, reduction=1)
         self.patch_embed = PatchEmbed(
             img_size=img_size, patch_size=patch_size, in_chans=in_chans, embed_dim=embed_dim)
         # img_size，in_chans规格的图像转成patch_size块维度为embed_dim的嵌入序列
@@ -462,7 +462,7 @@ class VisionTransformer(nn.Module):
 
     def forward(self, x, register_blk=-1):
         # B = x.shape[0]  # 提取x的0号位作为批量大小
-        print(x.shape)
+        print("______", x.shape)
         B, C, H, W = x.shape
         print(x.shape)
         x = self.SEAtt(x)
