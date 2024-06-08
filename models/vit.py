@@ -88,7 +88,6 @@ class Attention(nn.Module):
         return self.attention_map
 
     def forward(self, x, register_hook=False):
-        print("x.shape=====", x.shape)
         B, N, C = x.shape  # 获取输入张量 x 的形状信息，B 表示批量大小，N 表示序列长度，C 表示特征维度
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
         q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy (cannot use tensor as tuple)
@@ -112,249 +111,38 @@ class Attention(nn.Module):
         return x
 
 
-class SEAttention(nn.Module):
-    def __init__(self, channel=3, reduction=1):
+class WindowAttention(nn.Module):
+    def __init__(self, dim, window_size, num_heads):
         super().__init__()
-        self.avg_pool = nn.AdaptiveAvgPool2d(1)
-        self.fc = nn.Sequential(
-            nn.Linear(channel, channel // reduction, bias=False),
-            nn.ReLU(inplace=True),
-            nn.Linear(channel // reduction, channel, bias=False),
-            nn.Sigmoid()
-        )
-
-    def init_weights(self):
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                init.kaiming_normal_(m.weight, mode='fan_out')
-                if m.bias is not None:
-                    init.constant_(m.bias, 0)
-            elif isinstance(m, nn.BatchNorm2d):
-                init.constant_(m.weight, 1)
-                init.constant_(m.bias, 0)
-            elif isinstance(m, nn.Linear):
-                init.normal_(m.weight, std=0.001)
-                if m.bias is not None:
-                    init.constant_(m.bias, 0)
-
-    def forward(self, x):
-        b, c, _, _ = x.size()
-        y = self.avg_pool(x).view(b, c)
-        y = self.fc(y).view(b, c, 1, 1)
-        return x * y.expand_as(x)
-
-
-class VSWAttention(nn.Module):
-    # 可变窗口注意力 VSWAttention
-    def __init__(self, dim, num_heads=8, qkv_bias=True, qk_scale=None, attn_drop=0., proj_drop=0., img_size=(1, 1),
-                 out_dim=None, window_size=1):
-        super().__init__()
-        self.img_size = to_2tuple(img_size)
-        self.num_heads = num_heads
         self.dim = dim
-        self.out_dim = out_dim or dim
-        self.relative_pos_embedding = True
-        head_dim = dim // self.num_heads
-        self.ws = window_size
-        self.shift_size = 0
+        self.window_size = window_size
+        self.num_heads = num_heads
+        self.scale = dim ** -0.5
 
-        self.padding_bottom = (self.ws - self.img_size[0] % self.ws) % self.ws
-        self.padding_right = (self.ws - self.img_size[1] % self.ws) % self.ws
+        self.qkv = nn.Linear(dim, dim * 3, bias=False)
+        self.attn_drop = nn.Dropout(0.0)
+        self.proj = nn.Linear(dim, dim)
+        self.proj_drop = nn.Dropout(0.0)
 
-        self.sampling_offsets = nn.Sequential(
-            nn.AvgPool2d(kernel_size=window_size, stride=window_size),
-            nn.LeakyReLU(),
-            nn.Conv2d(dim, self.num_heads * 2, kernel_size=1, stride=1)
-        )
-        self.sampling_scales = nn.Sequential(
-            nn.AvgPool2d(kernel_size=window_size, stride=window_size),
-            nn.LeakyReLU(),
-            nn.Conv2d(dim, self.num_heads * 2, kernel_size=1, stride=1)
-        )
-
-        self.scale = qk_scale or head_dim ** -0.5
-
-        self.qkv = nn.Conv2d(dim, out_dim * 3, 1, bias=qkv_bias)
-        # self.kv = nn.Conv2d(dim, dim*2, 1, bias=False)
-
-        self.attn_drop = nn.Dropout(attn_drop)
-        self.proj = nn.Conv2d(out_dim, out_dim, 1)
-        self.proj_drop = nn.Dropout(proj_drop)
-
-        if self.relative_pos_embedding:
-            # define a parameter table of relative position bias
-            self.relative_position_bias_table = nn.Parameter(
-                torch.zeros((window_size + window_size - 1) * (window_size + window_size - 1),
-                            num_heads))  # 2*Wh-1 * 2*Ww-1, nH
-
-            # get pair-wise relative position index for each token inside the window
-            coords_h = torch.arange(self.ws)
-            coords_w = torch.arange(self.ws)
-            coords = torch.stack(torch.meshgrid([coords_h, coords_w]))  # 2, Wh, Ww
-            coords_flatten = torch.flatten(coords, 1)  # 2, Wh*Ww
-            relative_coords = coords_flatten[:, :, None] - coords_flatten[:, None, :]  # 2, Wh*Ww, Wh*Ww
-            relative_coords = relative_coords.permute(1, 2, 0).contiguous()  # Wh*Ww, Wh*Ww, 2
-            relative_coords[:, :, 0] += self.ws - 1  # shift to start from 0
-            relative_coords[:, :, 1] += self.ws - 1
-            relative_coords[:, :, 0] *= 2 * self.ws - 1
-            relative_position_index = relative_coords.sum(-1)  # Wh*Ww, Wh*Ww
-            self.register_buffer("relative_position_index", relative_position_index)
-
-            trunc_normal_(self.relative_position_bias_table, std=.02)
-            print('The relative_pos_embedding is used')
-
-        h, w = self.img_size
-        h, w = h + self.shift_size + self.padding_bottom, w + self.shift_size + self.padding_right
-        image_reference_w = torch.linspace(-1, 1, w)
-        image_reference_h = torch.linspace(-1, 1, h)
-        image_reference = torch.stack(torch.meshgrid(image_reference_w, image_reference_h), 0).permute(0, 2,
-                                                                                                       1).unsqueeze(
-            0)  # 2, h, w
-        window_reference = nn.functional.avg_pool2d(image_reference, kernel_size=self.ws)
-        window_num_h, window_num_w = window_reference.shape[-2:]
-        window_reference = window_reference.reshape(1, 2, window_num_h, 1, window_num_w, 1)
-
-        base_coords_h = torch.arange(self.ws) * 2 * self.ws / self.ws / (h - 1)
-        base_coords_h = (base_coords_h - base_coords_h.mean())
-        base_coords_w = torch.arange(self.ws) * 2 * self.ws / self.ws / (w - 1)
-        base_coords_w = (base_coords_w - base_coords_w.mean())
-
-        expanded_base_coords_h = base_coords_h.unsqueeze(dim=0).repeat(window_num_h, 1)
-        assert expanded_base_coords_h.shape[0] == window_num_h
-        assert expanded_base_coords_h.shape[1] == self.ws
-        expanded_base_coords_w = base_coords_w.unsqueeze(dim=0).repeat(window_num_w, 1)
-        assert expanded_base_coords_w.shape[0] == window_num_w
-        assert expanded_base_coords_w.shape[1] == self.ws
-        expanded_base_coords_h = expanded_base_coords_h.reshape(-1)
-        expanded_base_coords_w = expanded_base_coords_w.reshape(-1)
-        coords = torch.stack(torch.meshgrid(expanded_base_coords_w, expanded_base_coords_h), 0).permute(0, 2,
-                                                                                                        1).reshape(1, 2,
-                                                                                                                   window_num_h,
-                                                                                                                   self.ws,
-                                                                                                                   window_num_w,
-                                                                                                                   self.ws)
-        self.base_coords = (window_reference + coords).cuda()
-        self.coords = coords.cuda()
-        # self.register_buffer('base_coords', window_reference+coords)
-        # self.register_buffer('coords', coords)
-
-    def forward(self, x, register_hook=False):
-        print("_____x_____", x)
-        print("_____x.shape_____", x.shape)
-        b, _, h, w = x.shape
-        shortcut = x
-        assert h == self.img_size[0]
-        assert w == self.img_size[1]
-
-        x = torch.nn.functional.pad(x, (self.shift_size, self.padding_right, self.shift_size, self.padding_bottom))
-        window_num_h, window_num_w = self.base_coords.shape[-4], self.base_coords.shape[-2]
-
-        coords = self.base_coords.repeat(b * self.num_heads, 1, 1, 1, 1, 1)
-        sampling_offsets = self.sampling_offsets(x)
-        num_predict_total = b * self.num_heads
-        sampling_offsets = sampling_offsets.reshape(num_predict_total, 2, window_num_h, window_num_w)
-        sampling_offsets[:, 0, ...] = sampling_offsets[:, 0, ...] / (w // self.ws)
-        sampling_offsets[:, 1, ...] = sampling_offsets[:, 1, ...] / (h // self.ws)
-
-        sampling_scales = self.sampling_scales(x)  # B, heads*2, h // window_size, w // window_size
-        sampling_scales = sampling_scales.reshape(num_predict_total, 2, window_num_h, window_num_w)
-
-        coords = coords + self.coords * sampling_scales[:, :, :, None, :, None] + sampling_offsets[:, :, :, None, :,
-                                                                                  None]
-        sample_coords = coords.permute(0, 2, 3, 4, 5, 1).reshape(num_predict_total, self.ws * window_num_h,
-                                                                 self.ws * window_num_w, 2)
-
-        qkv = self.qkv(shortcut).reshape(b, 3, self.num_heads, self.out_dim // self.num_heads, h, w).transpose(1,
-                                                                                                               0).reshape(
-            3 * b * self.num_heads, self.out_dim // self.num_heads, h, w)
-        qkv = torch.nn.functional.pad(qkv, (
-            self.shift_size, self.padding_right, self.shift_size, self.padding_bottom)).reshape(3, b * self.num_heads,
-                                                                                                self.out_dim // self.num_heads,
-                                                                                                h + self.shift_size + self.padding_bottom,
-                                                                                                w + self.shift_size + self.padding_right)
+    def forward(self, x, mask=None):
+        B_, N, C = x.shape
+        qkv = self.qkv(x).reshape(B_, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
         q, k, v = qkv[0], qkv[1], qkv[2]
-        k_selected = F.grid_sample(
-            k.reshape(num_predict_total, self.out_dim // self.num_heads, h + self.shift_size + self.padding_bottom,
-                      w + self.shift_size + self.padding_right),
-            grid=sample_coords, padding_mode='zeros', align_corners=True
-        ).reshape(b * self.num_heads, self.out_dim // self.num_heads, h + self.shift_size + self.padding_bottom,
-                  w + self.shift_size + self.padding_right)
-        v_selected = F.grid_sample(
-            v.reshape(num_predict_total, self.out_dim // self.num_heads, h + self.shift_size + self.padding_bottom,
-                      w + self.shift_size + self.padding_right),
-            grid=sample_coords, padding_mode='zeros', align_corners=True
-        ).reshape(b * self.num_heads, self.out_dim // self.num_heads, h + self.shift_size + self.padding_bottom,
-                  w + self.shift_size + self.padding_right)
 
-        q = q.reshape(b, self.num_heads, self.out_dim // self.num_heads, window_num_h, self.ws, window_num_w,
-                      self.ws).permute(0, 3, 5, 1, 4, 6, 2).reshape(b * window_num_h * window_num_w, self.num_heads,
-                                                                    self.ws * self.ws, self.out_dim // self.num_heads)
-        k = k_selected.reshape(b, self.num_heads, self.out_dim // self.num_heads, window_num_h, self.ws, window_num_w,
-                               self.ws).permute(0, 3, 5, 1, 4, 6, 2).reshape(b * window_num_h * window_num_w,
-                                                                             self.num_heads, self.ws * self.ws,
-                                                                             self.out_dim // self.num_heads)
-        v = v_selected.reshape(b, self.num_heads, self.out_dim // self.num_heads, window_num_h, self.ws, window_num_w,
-                               self.ws).permute(0, 3, 5, 1, 4, 6, 2).reshape(b * window_num_h * window_num_w,
-                                                                             self.num_heads, self.ws * self.ws,
-                                                                             self.out_dim // self.num_heads)
+        q = q * self.scale
+        attn = (q @ k.transpose(-2, -1))
 
-        dots = (q @ k.transpose(-2, -1)) * self.scale
+        if mask is not None:
+            nW = mask.shape[0]
+            attn = attn.view(B_ // nW, nW, self.num_heads, N, N) + mask.unsqueeze(1).unsqueeze(0)
+            attn = attn.view(-1, self.num_heads, N, N)
 
-        if self.relative_pos_embedding:
-            relative_position_bias = self.relative_position_bias_table[self.relative_position_index.view(-1)].view(
-                self.ws * self.ws, self.ws * self.ws, -1)  # Wh*Ww,Wh*Ww,nH
-            relative_position_bias = relative_position_bias.permute(2, 0, 1).contiguous()  # nH, Wh*Ww, Wh*Ww
-            dots += relative_position_bias.unsqueeze(0)
-
-        attn = dots.softmax(dim=-1)
-        x = attn @ v
-
-        x = rearrange(x, '(b hh ww) h (ws1 ws2) d -> b (h d) (hh ws1) (ww ws2)', h=self.num_heads, b=b, hh=window_num_h,
-                      ww=window_num_w, ws1=self.ws, ws2=self.ws)
-        x = x[:, :, self.shift_size:h + self.shift_size, self.shift_size:w + self.shift_size]
-
+        attn = attn.softmax(dim=-1)
+        attn = self.attn_drop(attn)
+        x = (attn @ v).transpose(1, 2).reshape(B_, N, C)
         x = self.proj(x)
         x = self.proj_drop(x)
-
         return x
-
-    def _reset_parameters(self):
-        nn.init.constant_(self.sampling_offsets[-1].weight, 0.)
-        nn.init.constant_(self.sampling_offsets[-1].bias, 0.)
-        nn.init.constant_(self.sampling_scales[-1].weight, 0.)
-        nn.init.constant_(self.sampling_scales[-1].bias, 0.)
-
-    def flops(self, ):
-        N = self.ws * self.ws
-        M = self.ws * self.ws
-        # calculate flops for 1 window with token length of N
-        flops = 0
-        # qkv = self.qkv(x)
-        flops += N * self.dim * 3 * self.dim
-        # attn = (q @ k.transpose(-2, -1))
-        flops += self.num_heads * N * (self.dim // self.num_heads) * M
-        #  x = (attn @ v)
-        flops += self.num_heads * N * M * (self.dim // self.num_heads)
-        # x = self.proj(x)
-        flops += N * self.dim * self.dim
-        h, w = self.img_size[0] + self.shift_size + self.padding_bottom, self.img_size[
-            1] + self.shift_size + self.padding_right
-        flops *= (h / self.ws * w / self.ws)
-
-        # for sampling
-        flops_sampling = 0
-        # pooling
-        flops_sampling += h * w * self.dim
-        # regressing the shift and scale
-        flops_sampling += 2 * (h / self.ws + w / self.ws) * self.num_heads * 2 * self.dim
-        # calculating the coords
-        flops_sampling += h / self.ws * self.ws * w / self.ws * self.ws * 2
-        # grid sampling attended features
-        flops_sampling += h / self.ws * self.ws * w / self.ws * self.ws * self.dim
-
-        flops += flops_sampling
-
-        return flops
 
 
 class Block(nn.Module):
@@ -415,7 +203,7 @@ class VisionTransformer(nn.Module):
         super().__init__()
         self.num_features = self.embed_dim = embed_dim  # num_features for consistency with other models
         norm_layer = norm_layer or partial(nn.LayerNorm, eps=1e-6)  # 若未传入归一化函数则采用LayerNorm
-        self.SEAtt = SEAttention(channel=in_chans, reduction=1)
+        self.WAttn = WindowAttention(dim=embed_dim, window_size=7, num_heads=8)
         self.patch_embed = PatchEmbed(
             img_size=img_size, patch_size=patch_size, in_chans=in_chans, embed_dim=embed_dim)
         # img_size，in_chans规格的图像转成patch_size块维度为embed_dim的嵌入序列
@@ -462,11 +250,10 @@ class VisionTransformer(nn.Module):
 
     def forward(self, x, register_blk=-1):
         # B = x.shape[0]  # 提取x的0号位作为批量大小
-        print(f"______{x.shape}")
         B, C, H, W = x.shape
         print(x.shape)
-        x = self.SEAtt(x)
-        print("SEAttention", x.shape)
+        x = self.WAttn(x)
+        print("WAttn", x.shape)
         x = self.patch_embed(x)  # 调用patch_embed对象将输入x转为嵌入序列
         print("patch_embed(x)", x.shape)
         cls_tokens = self.cls_token.expand(B, -1, -1)  # stole cls_tokens impl from Phil Wang, thanks
