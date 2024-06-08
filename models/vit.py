@@ -462,7 +462,7 @@ class VisionTransformer(nn.Module):
 
     def forward(self, x, register_blk=-1):
         # B = x.shape[0]  # 提取x的0号位作为批量大小
-        print("______", x.shape)
+        print(f"______{x.shape}")
         B, C, H, W = x.shape
         print(x.shape)
         x = self.SEAtt(x)
