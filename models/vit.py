@@ -140,6 +140,7 @@ class VSWAttention(nn.Module):
 
         self.scale = qk_scale or head_dim ** -0.5
 
+
         self.qkv = nn.Conv2d(dim, out_dim * 3, 1, bias=qkv_bias)
         # self.kv = nn.Conv2d(dim, dim*2, 1, bias=False)
 
@@ -427,18 +428,23 @@ class VisionTransformer(nn.Module):
     def forward(self, x, register_blk=-1):
         B = x.shape[0]  # 提取x的0号位作为批量大小
         x = self.patch_embed(x)  # 调用patch_embed对象将输入x转为嵌入序列
-
+        print("patch_embed(x)",x.shape)
         cls_tokens = self.cls_token.expand(B, -1, -1)  # stole cls_tokens impl from Phil Wang, thanks
         # 扩展cls令牌的第一个维度为B，-1表示保持原维度不变
         x = torch.cat((cls_tokens, x), dim=1)   # 将cls_tokens与输入张量x在维度1上进行拼接，即在序列维度上进行拼接
+        print("cat",x.shape)
 
         x = x + self.pos_embed[:, :x.size(1), :]    # 将位置嵌入pos_embed直接加到输入张量x上
+        print("pos_embed",x.shape)
+
         x = self.pos_drop(x)    # 调用pos_drop层，将x部分元素置零
+        print("pos_drop",x.shape)
+
         # 至此，得到了一个带有cls令牌和位置嵌入的输入张量x
         for i, blk in enumerate(self.blocks):
             x = blk(x, register_blk == i)   # 对每个块应用一些个性化的操作
         x = self.norm(x)    # 对x进行归一化操作
-
+        print("norm",x.shape)
         return x
 
     @torch.jit.ignore()
