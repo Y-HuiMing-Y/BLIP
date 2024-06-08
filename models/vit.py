@@ -22,6 +22,7 @@ from timm.models.layers import trunc_normal_, DropPath
 from timm.models.helpers import named_apply, adapt_input_conv
 
 from fairscale.nn.checkpoint.checkpoint_activations import checkpoint_wrapper
+from torch.nn import init
 
 
 class Mlp(nn.Module):
@@ -88,7 +89,7 @@ class Attention(nn.Module):
 
     def forward(self, x, register_hook=False):
         print("x.shape=====", x.shape)
-        B, N, C = x.shape   # 获取输入张量 x 的形状信息，B 表示批量大小，N 表示序列长度，C 表示特征维度
+        B, N, C = x.shape  # 获取输入张量 x 的形状信息，B 表示批量大小，N 表示序列长度，C 表示特征维度
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
         q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy (cannot use tensor as tuple)
 
@@ -111,9 +112,42 @@ class Attention(nn.Module):
         return x
 
 
+class SEAttention(nn.Module):
+    def __init__(self, channel=512, reduction=16):
+        super().__init__()
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.fc = nn.Sequential(
+            nn.Linear(channel, channel // reduction, bias=False),
+            nn.ReLU(inplace=True),
+            nn.Linear(channel // reduction, channel, bias=False),
+            nn.Sigmoid()
+        )
+
+    def init_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                init.kaiming_normal_(m.weight, mode='fan_out')
+                if m.bias is not None:
+                    init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm2d):
+                init.constant_(m.weight, 1)
+                init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Linear):
+                init.normal_(m.weight, std=0.001)
+                if m.bias is not None:
+                    init.constant_(m.bias, 0)
+
+    def forward(self, x):
+        b, c, _, _ = x.size()
+        y = self.avg_pool(x).view(b, c)
+        y = self.fc(y).view(b, c, 1, 1)
+        return x * y.expand_as(x)
+
+
 class VSWAttention(nn.Module):
     # 可变窗口注意力 VSWAttention
-    def __init__(self, dim, num_heads=8, qkv_bias=True, qk_scale=None, attn_drop=0., proj_drop=0., img_size=(1,1), out_dim=None, window_size=1):
+    def __init__(self, dim, num_heads=8, qkv_bias=True, qk_scale=None, attn_drop=0., proj_drop=0., img_size=(1, 1),
+                 out_dim=None, window_size=1):
         super().__init__()
         self.img_size = to_2tuple(img_size)
         self.num_heads = num_heads
@@ -139,7 +173,6 @@ class VSWAttention(nn.Module):
         )
 
         self.scale = qk_scale or head_dim ** -0.5
-
 
         self.qkv = nn.Conv2d(dim, out_dim * 3, 1, bias=qkv_bias)
         # self.kv = nn.Conv2d(dim, dim*2, 1, bias=False)
@@ -235,10 +268,10 @@ class VSWAttention(nn.Module):
                                                                                                                0).reshape(
             3 * b * self.num_heads, self.out_dim // self.num_heads, h, w)
         qkv = torch.nn.functional.pad(qkv, (
-        self.shift_size, self.padding_right, self.shift_size, self.padding_bottom)).reshape(3, b * self.num_heads,
-                                                                                            self.out_dim // self.num_heads,
-                                                                                            h + self.shift_size + self.padding_bottom,
-                                                                                            w + self.shift_size + self.padding_right)
+            self.shift_size, self.padding_right, self.shift_size, self.padding_bottom)).reshape(3, b * self.num_heads,
+                                                                                                self.out_dim // self.num_heads,
+                                                                                                h + self.shift_size + self.padding_bottom,
+                                                                                                w + self.shift_size + self.padding_right)
         q, k, v = qkv[0], qkv[1], qkv[2]
         k_selected = F.grid_sample(
             k.reshape(num_predict_total, self.out_dim // self.num_heads, h + self.shift_size + self.padding_bottom,
@@ -276,7 +309,8 @@ class VSWAttention(nn.Module):
         attn = dots.softmax(dim=-1)
         x = attn @ v
 
-        x = rearrange(x, '(b hh ww) h (ws1 ws2) d -> b (h d) (hh ws1) (ww ws2)', h=self.num_heads, b=b, hh=window_num_h, ww=window_num_w, ws1=self.ws, ws2=self.ws)
+        x = rearrange(x, '(b hh ww) h (ws1 ws2) d -> b (h d) (hh ws1) (ww ws2)', h=self.num_heads, b=b, hh=window_num_h,
+                      ww=window_num_w, ws1=self.ws, ws2=self.ws)
         x = x[:, :, self.shift_size:h + self.shift_size, self.shift_size:w + self.shift_size]
 
         x = self.proj(x)
@@ -381,7 +415,7 @@ class VisionTransformer(nn.Module):
         super().__init__()
         self.num_features = self.embed_dim = embed_dim  # num_features for consistency with other models
         norm_layer = norm_layer or partial(nn.LayerNorm, eps=1e-6)  # 若未传入归一化函数则采用LayerNorm
-
+        self.SEAtt = SEAttention()
         self.patch_embed = PatchEmbed(
             img_size=img_size, patch_size=patch_size, in_chans=in_chans, embed_dim=embed_dim)
         # img_size，in_chans规格的图像转成patch_size块维度为embed_dim的嵌入序列
@@ -389,7 +423,7 @@ class VisionTransformer(nn.Module):
         num_patches = self.patch_embed.num_patches  # 获取patch_embed中的块数
 
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))  # 创建一个可训练的全零张量作为cls_token
-        self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, embed_dim))   # 创建一个可训练的全零张量作为位置嵌入
+        self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, embed_dim))  # 创建一个可训练的全零张量作为位置嵌入
         self.pos_drop = nn.Dropout(p=drop_rate)  # 创建Drop层，以概率p将输入张量的部分元素置零
 
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # stochastic depth decay rule随机深度衰减规则
@@ -399,8 +433,8 @@ class VisionTransformer(nn.Module):
                 drop=drop_rate, attn_drop=attn_drop_rate, drop_path=dpr[i], norm_layer=norm_layer,
                 use_grad_checkpointing=(use_grad_checkpointing and i >= depth - ckpt_layer)
             )
-            for i in range(depth)])   # 定义Block的实例，每个 Block 实例代表 Transformer 模型中的一个编码器层
-        self.norm = norm_layer(embed_dim)   # 按输入维度embed_dim创建norm_layer归一化层
+            for i in range(depth)])  # 定义Block的实例，每个 Block 实例代表 Transformer 模型中的一个编码器层
+        self.norm = norm_layer(embed_dim)  # 按输入维度embed_dim创建norm_layer归一化层
 
         trunc_normal_(self.pos_embed, std=.02)  # 使用std=.02的标准差,截断正态分布来初始化位置嵌入（pos_embed）
         trunc_normal_(self.cls_token, std=.02)  # 使用std=.02的标准差,截断正态分布来初始化cls令牌嵌入（cls_token）
@@ -414,6 +448,7 @@ class VisionTransformer(nn.Module):
         elif isinstance(m, nn.LayerNorm):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
+
     '''
     用于初始化模型的权重和归一化层的参数:
     如果输入的模块 m 是线性层 (nn.Linear)，则使用截断正态分布初始化权重 (m.weight)，标准差为 0.02。
@@ -423,33 +458,37 @@ class VisionTransformer(nn.Module):
 
     @torch.jit.ignore
     def no_weight_decay(self):
-        return {'pos_embed', 'cls_token'}   # 返回一个字典，其中包含不需要进行权重衰减的参数的名称
+        return {'pos_embed', 'cls_token'}  # 返回一个字典，其中包含不需要进行权重衰减的参数的名称
 
     def forward(self, x, register_blk=-1):
-        B = x.shape[0]  # 提取x的0号位作为批量大小
+        # B = x.shape[0]  # 提取x的0号位作为批量大小
+        print(x.shape)
+        B, C, H, W = x.shape
+        x = SEAttention(x)
+        print("SEAttention", x.shape)
         x = self.patch_embed(x)  # 调用patch_embed对象将输入x转为嵌入序列
-        print("patch_embed(x)",x.shape)
+        print("patch_embed(x)", x.shape)
         cls_tokens = self.cls_token.expand(B, -1, -1)  # stole cls_tokens impl from Phil Wang, thanks
         # 扩展cls令牌的第一个维度为B，-1表示保持原维度不变
-        x = torch.cat((cls_tokens, x), dim=1)   # 将cls_tokens与输入张量x在维度1上进行拼接，即在序列维度上进行拼接
-        print("cat",x.shape)
+        x = torch.cat((cls_tokens, x), dim=1)  # 将cls_tokens与输入张量x在维度1上进行拼接，即在序列维度上进行拼接
+        print("cat", x.shape)
 
-        x = x + self.pos_embed[:, :x.size(1), :]    # 将位置嵌入pos_embed直接加到输入张量x上
-        print("pos_embed",x.shape)
+        x = x + self.pos_embed[:, :x.size(1), :]  # 将位置嵌入pos_embed直接加到输入张量x上
+        print("pos_embed", x.shape)
 
-        x = self.pos_drop(x)    # 调用pos_drop层，将x部分元素置零
-        print("pos_drop",x.shape)
+        x = self.pos_drop(x)  # 调用pos_drop层，将x部分元素置零
+        print("pos_drop", x.shape)
 
         # 至此，得到了一个带有cls令牌和位置嵌入的输入张量x
         for i, blk in enumerate(self.blocks):
-            x = blk(x, register_blk == i)   # 对每个块应用一些个性化的操作
-        x = self.norm(x)    # 对x进行归一化操作
-        print("norm",x.shape)
+            x = blk(x, register_blk == i)  # 对每个块应用一些个性化的操作
+        x = self.norm(x)  # 对x进行归一化操作
+        print("norm", x.shape)
         return x
 
     @torch.jit.ignore()
     def load_pretrained(self, checkpoint_path, prefix=''):
-        _load_weights(self, checkpoint_path, prefix)    # 加载权重
+        _load_weights(self, checkpoint_path, prefix)  # 加载权重
 
 
 @torch.no_grad()
