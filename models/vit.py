@@ -113,7 +113,7 @@ class Attention(nn.Module):
 
 
 class SEAttention(nn.Module):
-    def __init__(self, channel=3, reduction=16):
+    def __init__(self, channel=3, reduction=1):
         super().__init__()
         self.avg_pool = nn.AdaptiveAvgPool2d(1)
         self.fc = nn.Sequential(
