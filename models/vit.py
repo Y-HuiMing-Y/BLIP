@@ -113,7 +113,7 @@ class Attention(nn.Module):
 
 
 class SEAttention(nn.Module):
-    def __init__(self, channel=512, reduction=16):
+    def __init__(self, channel=3, reduction=16):
         super().__init__()
         self.avg_pool = nn.AdaptiveAvgPool2d(1)
         self.fc = nn.Sequential(
@@ -464,7 +464,8 @@ class VisionTransformer(nn.Module):
         # B = x.shape[0]  # 提取x的0号位作为批量大小
         print(x.shape)
         B, C, H, W = x.shape
-        x = SEAttention(x)
+        print(x.shape)
+        x = self.SEAtt(x)
         print("SEAttention", x.shape)
         x = self.patch_embed(x)  # 调用patch_embed对象将输入x转为嵌入序列
         print("patch_embed(x)", x.shape)
