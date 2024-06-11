@@ -138,7 +138,7 @@ class Block(nn.Module):
 
     def forward(self, x, register_hook=False):
         x, attn = self.SMHAttn(x)
-        print("---------SMHAttn", x.shape)
+        # x.shape = torch.Size([8, 577, 768])
         x = x + x
         x = x + self.drop_path(self.attn(self.norm1(x), register_hook=register_hook))
         x = x + self.drop_path(self.mlp(self.norm2(x)))
