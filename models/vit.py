@@ -111,38 +111,38 @@ class Attention(nn.Module):
         return x
 
 
-class WindowAttention(nn.Module):
-    def __init__(self, dim, window_size, num_heads):
-        super().__init__()
-        self.dim = dim
-        self.window_size = window_size
-        self.num_heads = num_heads
-        self.scale = dim ** -0.5
-
-        self.qkv = nn.Linear(dim, dim * 3, bias=False)
-        self.attn_drop = nn.Dropout(0.0)
-        self.proj = nn.Linear(dim, dim)
-        self.proj_drop = nn.Dropout(0.0)
-
-    def forward(self, x, mask=None):
-        B, C, N = x.shape
-        qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
-        q, k, v = qkv[0], qkv[1], qkv[2]
-
-        q = q * self.scale
-        attn = (q @ k.transpose(-2, -1))
-
-        if mask is not None:
-            nW = mask.shape[0]
-            attn = attn.view(B // nW, nW, self.num_heads, N, N) + mask.unsqueeze(1).unsqueeze(0)
-            attn = attn.view(-1, self.num_heads, N, N)
-
-        attn = attn.softmax(dim=-1)
-        attn = self.attn_drop(attn)
-        x = (attn @ v).transpose(1, 2).reshape(B, N, C)
-        x = self.proj(x)
-        x = self.proj_drop(x)
-        return x
+# class WindowAttention(nn.Module):
+#     def __init__(self, dim, window_size, num_heads):
+#         super().__init__()
+#         self.dim = dim
+#         self.window_size = window_size
+#         self.num_heads = num_heads
+#         self.scale = dim ** -0.5
+#
+#         self.qkv = nn.Linear(dim, dim * 3, bias=False)
+#         self.attn_drop = nn.Dropout(0.0)
+#         self.proj = nn.Linear(dim, dim)
+#         self.proj_drop = nn.Dropout(0.0)
+#
+#     def forward(self, x, mask=None):
+#         B, C, N = x.shape
+#         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
+#         q, k, v = qkv[0], qkv[1], qkv[2]
+#
+#         q = q * self.scale
+#         attn = (q @ k.transpose(-2, -1))
+#
+#         if mask is not None:
+#             nW = mask.shape[0]
+#             attn = attn.view(B // nW, nW, self.num_heads, N, N) + mask.unsqueeze(1).unsqueeze(0)
+#             attn = attn.view(-1, self.num_heads, N, N)
+#
+#         attn = attn.softmax(dim=-1)
+#         attn = self.attn_drop(attn)
+#         x = (attn @ v).transpose(1, 2).reshape(B, N, C)
+#         x = self.proj(x)
+#         x = self.proj_drop(x)
+#         return x
 
 
 class Block(nn.Module):
@@ -153,9 +153,6 @@ class Block(nn.Module):
         self.norm1 = norm_layer(dim)
         self.attn = Attention(
             dim, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop)
-        # # VSWAttention
-        # self.attn = Attention(
-        #     dim, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop, window_size=7)
         # NOTE: drop path for stochastic depth, we shall see if this is better than dropout here
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         self.norm2 = norm_layer(dim)
@@ -203,7 +200,6 @@ class VisionTransformer(nn.Module):
         super().__init__()
         self.num_features = self.embed_dim = embed_dim  # num_features for consistency with other models
         norm_layer = norm_layer or partial(nn.LayerNorm, eps=1e-6)  # 若未传入归一化函数则采用LayerNorm
-        self.WAttn = WindowAttention(dim=embed_dim, window_size=7, num_heads=8)
         self.patch_embed = PatchEmbed(
             img_size=img_size, patch_size=patch_size, in_chans=in_chans, embed_dim=embed_dim)
         # img_size，in_chans规格的图像转成patch_size块维度为embed_dim的嵌入序列
@@ -249,8 +245,8 @@ class VisionTransformer(nn.Module):
         return {'pos_embed', 'cls_token'}  # 返回一个字典，其中包含不需要进行权重衰减的参数的名称
 
     def forward(self, x, register_blk=-1):
-        # B = x.shape[0]  # 提取x的0号位作为批量大小
-        B, C, H, W = x.shape
+        B = x.shape[0]  # 提取x的0号位作为批量大小
+        # B, C, H, W = x.shape
         print(x.shape)
         # x = self.WAttn(x)
         # print("WAttn", x.shape)
