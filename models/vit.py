@@ -6,23 +6,23 @@
  * By Junnan Li
  * Based on timm code base
  * https://github.com/rwightman/pytorch-image-models/tree/master/timm
- 插入可变窗口注意力机制 VSAWindowAttention
+ 2024.6.11修改
+ 1、添加Block类init中的use_entmax: bool = False, learnable_entmax_alpha: bool = False两个参数
+ 2、添加对象的实例化 self.SMHAttn
+ 3、添加SMHAttn的实现 x = x + self.SMHAttn(x)
 '''
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from functools import partial
 
-from einops import rearrange
-from timm.models.layers import to_2tuple
 from timm.models.vision_transformer import _cfg, PatchEmbed, resize_pos_embed
-from timm.models.registry import register_model
 from timm.models.layers import trunc_normal_, DropPath
 from timm.models.helpers import named_apply, adapt_input_conv
 
 from fairscale.nn.checkpoint.checkpoint_activations import checkpoint_wrapper
-from torch.nn import init
+
+from models.SparseAttention.sparse_mha import SparseMultiHeadSelfAttention
 
 
 class Mlp(nn.Module):
@@ -111,48 +111,21 @@ class Attention(nn.Module):
         return x
 
 
-class WindowAttention(nn.Module):
-    def __init__(self, dim, window_size, num_heads):
-        super().__init__()
-        self.dim = dim
-        self.window_size = window_size
-        self.num_heads = num_heads
-        self.scale = dim ** -0.5
-
-        self.qkv = nn.Linear(dim, dim * 3, bias=False)
-        self.attn_drop = nn.Dropout(0.0)
-        self.proj = nn.Linear(dim, dim)
-        self.proj_drop = nn.Dropout(0.0)
-
-    def forward(self, x, mask=None):
-        B, C, N = x.shape
-        qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
-        q, k, v = qkv[0], qkv[1], qkv[2]
-
-        q = q * self.scale
-        attn = (q @ k.transpose(-2, -1))
-
-        if mask is not None:
-            nW = mask.shape[0]
-            attn = attn.view(B // nW, nW, self.num_heads, N, N) + mask.unsqueeze(1).unsqueeze(0)
-            attn = attn.view(-1, self.num_heads, N, N)
-
-        attn = attn.softmax(dim=-1)
-        attn = self.attn_drop(attn)
-        x = (attn @ v).transpose(1, 2).reshape(B, N, C)
-        x = self.proj(x)
-        x = self.proj_drop(x)
-        return x
-
-
 class Block(nn.Module):
 
     def __init__(self, dim, num_heads, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop=0., attn_drop=0.,
-                 drop_path=0., act_layer=nn.GELU, norm_layer=nn.LayerNorm, use_grad_checkpointing=False):
+                 drop_path=0., act_layer=nn.GELU, norm_layer=nn.LayerNorm, use_grad_checkpointing=False,
+                 use_entmax: bool = False, learnable_entmax_alpha: bool = False):
         super().__init__()
         self.norm1 = norm_layer(dim)
         self.attn = Attention(
             dim, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop)
+        self.SMHAttn = SparseMultiHeadSelfAttention(
+            num_heads=num_heads,
+            embed_dim=dim,
+            dropout=drop,
+            use_entmax=use_entmax,
+            learnable_entmax_alpha=learnable_entmax_alpha)
         # NOTE: drop path for stochastic depth, we shall see if this is better than dropout here
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         self.norm2 = norm_layer(dim)
@@ -164,6 +137,9 @@ class Block(nn.Module):
             self.mlp = checkpoint_wrapper(self.mlp)
 
     def forward(self, x, register_hook=False):
+        x, attn = self.SMHAttn(x)
+        print("---------SMHAttn", x.shape)
+        x = x + x
         x = x + self.drop_path(self.attn(self.norm1(x), register_hook=register_hook))
         x = x + self.drop_path(self.mlp(self.norm2(x)))
         return x
@@ -232,7 +208,6 @@ class VisionTransformer(nn.Module):
         elif isinstance(m, nn.LayerNorm):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
-
     '''
     用于初始化模型的权重和归一化层的参数:
     如果输入的模块 m 是线性层 (nn.Linear)，则使用截断正态分布初始化权重 (m.weight)，标准差为 0.02。
@@ -248,8 +223,6 @@ class VisionTransformer(nn.Module):
         # B = x.shape[0]  # 提取x的0号位作为批量大小
         B, C, H, W = x.shape
         print(x.shape)
-        # x = self.WAttn(x)
-        # print("WAttn", x.shape)
         x = self.patch_embed(x)  # 调用patch_embed对象将输入x转为嵌入序列
         print("patch_embed(x)", x.shape)
         cls_tokens = self.cls_token.expand(B, -1, -1)  # stole cls_tokens impl from Phil Wang, thanks
