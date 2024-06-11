@@ -111,38 +111,38 @@ class Attention(nn.Module):
         return x
 
 
-# class WindowAttention(nn.Module):
-#     def __init__(self, dim, window_size, num_heads):
-#         super().__init__()
-#         self.dim = dim
-#         self.window_size = window_size
-#         self.num_heads = num_heads
-#         self.scale = dim ** -0.5
-#
-#         self.qkv = nn.Linear(dim, dim * 3, bias=False)
-#         self.attn_drop = nn.Dropout(0.0)
-#         self.proj = nn.Linear(dim, dim)
-#         self.proj_drop = nn.Dropout(0.0)
-#
-#     def forward(self, x, mask=None):
-#         B, C, N = x.shape
-#         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
-#         q, k, v = qkv[0], qkv[1], qkv[2]
-#
-#         q = q * self.scale
-#         attn = (q @ k.transpose(-2, -1))
-#
-#         if mask is not None:
-#             nW = mask.shape[0]
-#             attn = attn.view(B // nW, nW, self.num_heads, N, N) + mask.unsqueeze(1).unsqueeze(0)
-#             attn = attn.view(-1, self.num_heads, N, N)
-#
-#         attn = attn.softmax(dim=-1)
-#         attn = self.attn_drop(attn)
-#         x = (attn @ v).transpose(1, 2).reshape(B, N, C)
-#         x = self.proj(x)
-#         x = self.proj_drop(x)
-#         return x
+class WindowAttention(nn.Module):
+    def __init__(self, dim, window_size, num_heads):
+        super().__init__()
+        self.dim = dim
+        self.window_size = window_size
+        self.num_heads = num_heads
+        self.scale = dim ** -0.5
+
+        self.qkv = nn.Linear(dim, dim * 3, bias=False)
+        self.attn_drop = nn.Dropout(0.0)
+        self.proj = nn.Linear(dim, dim)
+        self.proj_drop = nn.Dropout(0.0)
+
+    def forward(self, x, mask=None):
+        B, C, N = x.shape
+        qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
+        q, k, v = qkv[0], qkv[1], qkv[2]
+
+        q = q * self.scale
+        attn = (q @ k.transpose(-2, -1))
+
+        if mask is not None:
+            nW = mask.shape[0]
+            attn = attn.view(B // nW, nW, self.num_heads, N, N) + mask.unsqueeze(1).unsqueeze(0)
+            attn = attn.view(-1, self.num_heads, N, N)
+
+        attn = attn.softmax(dim=-1)
+        attn = self.attn_drop(attn)
+        x = (attn @ v).transpose(1, 2).reshape(B, N, C)
+        x = self.proj(x)
+        x = self.proj_drop(x)
+        return x
 
 
 class Block(nn.Module):
@@ -245,8 +245,8 @@ class VisionTransformer(nn.Module):
         return {'pos_embed', 'cls_token'}  # 返回一个字典，其中包含不需要进行权重衰减的参数的名称
 
     def forward(self, x, register_blk=-1):
-        B = x.shape[0]  # 提取x的0号位作为批量大小
-        # B, C, H, W = x.shape
+        # B = x.shape[0]  # 提取x的0号位作为批量大小
+        B, C, H, W = x.shape
         print(x.shape)
         # x = self.WAttn(x)
         # print("WAttn", x.shape)
