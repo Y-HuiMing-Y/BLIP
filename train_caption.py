@@ -144,8 +144,10 @@ def main(args, config):
 
         val_result = evaluate(model_without_ddp, val_loader, device, config)
         val_result_file = save_result(val_result, args.result_dir, 'val_epoch%d' % epoch, remove_duplicate='image_id')
+        print("val_result_file:", val_result_file)
         test_result = evaluate(model_without_ddp, test_loader, device, config)
         test_result_file = save_result(test_result, args.result_dir, 'test_epoch%d' % epoch, remove_duplicate='image_id')
+        print("test_result_file", test_result_file)
         # 对主进程进行模型保存、评估结果保存操作
         if utils.is_main_process():
             coco_val = coco_caption_eval(config['coco_gt_root'], val_result_file, 'val')

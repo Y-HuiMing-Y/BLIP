@@ -125,8 +125,8 @@ class WindowAttention(nn.Module):
         self.proj_drop = nn.Dropout(0.0)
 
     def forward(self, x, mask=None):
-        B_, N, C = x.shape
-        qkv = self.qkv(x).reshape(B_, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
+        B, C, N = x.shape
+        qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
         q, k, v = qkv[0], qkv[1], qkv[2]
 
         q = q * self.scale
@@ -134,12 +134,12 @@ class WindowAttention(nn.Module):
 
         if mask is not None:
             nW = mask.shape[0]
-            attn = attn.view(B_ // nW, nW, self.num_heads, N, N) + mask.unsqueeze(1).unsqueeze(0)
+            attn = attn.view(B // nW, nW, self.num_heads, N, N) + mask.unsqueeze(1).unsqueeze(0)
             attn = attn.view(-1, self.num_heads, N, N)
 
         attn = attn.softmax(dim=-1)
         attn = self.attn_drop(attn)
-        x = (attn @ v).transpose(1, 2).reshape(B_, N, C)
+        x = (attn @ v).transpose(1, 2).reshape(B, N, C)
         x = self.proj(x)
         x = self.proj_drop(x)
         return x
@@ -252,8 +252,8 @@ class VisionTransformer(nn.Module):
         # B = x.shape[0]  # 提取x的0号位作为批量大小
         B, C, H, W = x.shape
         print(x.shape)
-        x = self.WAttn(x)
-        print("WAttn", x.shape)
+        # x = self.WAttn(x)
+        # print("WAttn", x.shape)
         x = self.patch_embed(x)  # 调用patch_embed对象将输入x转为嵌入序列
         print("patch_embed(x)", x.shape)
         cls_tokens = self.cls_token.expand(B, -1, -1)  # stole cls_tokens impl from Phil Wang, thanks
