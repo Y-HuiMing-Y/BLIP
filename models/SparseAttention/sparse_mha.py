@@ -183,7 +183,7 @@ class SparseMultiHeadSelfAttention(nn.Module):
             attn_mask: [n, n] or [bs * H, n, n], type bool or float
             group_prob: [bs, n, n]
         """
-        batch_size, seq_len, embed_dim = seq.shape
+        seq_len, batch_size, embed_dim = seq.shape
         assert embed_dim == self.embed_dim, \
             f"was expecting embedding dimension of {self.embed_dim}, but got {embed_dim}"
         seq_proj: torch.Tensor = self.linear_qkv(seq)
