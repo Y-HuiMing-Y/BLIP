@@ -1,6 +1,6 @@
-image_root: '/kaggle/input/coco2014/images'
-ann_root: '/kaggle/input/coco2014/annotations'
-coco_gt_root: '/kaggle/input/coco2014/annotations/coco_gt'
+image_root: '/kaggle/input/power-dataset-self/images'
+ann_root: '/kaggle/input/power-dataset-self/annotations'
+coco_gt_root: '/kaggle/input/power-dataset-self/annotations/power_gt'
 
 # set pretrained as a file path or an url
 pretrained: 'https://storage.googleapis.com/sfr-vision-language-research/BLIP/models/model_base_caption_capfilt_large.pth'
@@ -21,7 +21,7 @@ init_lr: 1e-5
 image_size: 384
 
 # generation configs
-max_length: 20
+max_length: 50
 min_length: 5
 num_beams: 3
 prompt: 'a picture of '
@@ -29,4 +29,5 @@ prompt: 'a picture of '
 # optimizer
 weight_decay: 0.05
 min_lr: 0
-max_epoch: 5
+max_epoch: 25
+
