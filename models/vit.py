@@ -137,9 +137,7 @@ class Block(nn.Module):
             self.mlp = checkpoint_wrapper(self.mlp)
 
     def forward(self, x, register_hook=False):
-        # x = x + self.drop_path(self.attn(self.norm1(x), register_hook=register_hook))
-        x = x + self.drop_path(self.SMHAttn(self.norm1(x), register_hook=register_hook))
-        # print("____SMHAttn", x.shape)
+        x = x + self.drop_path(self.attn(self.norm1(x), register_hook=register_hook))
         x = x + self.drop_path(self.mlp(self.norm2(x)))
         return x
 
@@ -177,6 +175,13 @@ class VisionTransformer(nn.Module):
         norm_layer = norm_layer or partial(nn.LayerNorm, eps=1e-6)  # 若未传入归一化函数则采用LayerNorm
         self.patch_embed = PatchEmbed(
             img_size=img_size, patch_size=patch_size, in_chans=in_chans, embed_dim=embed_dim)
+        self.SMAttn = SparseMultiHeadSelfAttention(
+            num_heads=num_heads,
+            embed_dim=embed_dim,
+            dropout=None,
+            use_entmax=False,
+            learnable_entmax_alpha=False
+        )
         # img_size，in_chans规格的图像转成patch_size块维度为embed_dim的嵌入序列
 
         num_patches = self.patch_embed.num_patches  # 获取patch_embed中的块数
@@ -238,6 +243,8 @@ class VisionTransformer(nn.Module):
         # 至此，得到了一个带有cls令牌和位置嵌入的输入张量x
         for i, blk in enumerate(self.blocks):
             x = blk(x, register_blk == i)  # 对每个块应用一些个性化的操作
+        x = self.SMAttn(x)
+        print("SMAttn", x.shape)
         x = self.norm(x)  # 对x进行归一化操作
         print("norm", x.shape)
         return x
