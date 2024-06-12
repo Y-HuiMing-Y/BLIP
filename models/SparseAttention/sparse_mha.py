@@ -205,7 +205,7 @@ class SparseMultiHeadSelfAttention(nn.Module):
         )
         seq_out = seq_out.reshape(seq_len, batch_size, -1)
         seq_out = self.linear_out(seq_out)
-        return seq_out, attn
+        return seq_out
 
 
 def dot_product_attention(

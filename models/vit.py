@@ -138,9 +138,8 @@ class Block(nn.Module):
 
     def forward(self, x, register_hook=False):
         # x = x + self.drop_path(self.attn(self.norm1(x), register_hook=register_hook))
-        x, attn = self.SMHAttn(self.norm1(x))
+        x = x + self.drop_path(self.SMHAttn(self.norm1(x)), register_hook=register_hook)
         # print("____SMHAttn", x.shape)
-        x = x + x
         x = x + self.drop_path(self.mlp(self.norm2(x)))
         return x
 
