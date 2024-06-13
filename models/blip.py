@@ -174,7 +174,7 @@ def blip_decoder(pretrained='', **kwargs):
     model = BLIP_Decoder(**kwargs)
     if pretrained:
         model, msg = load_checkpoint(model, pretrained)
-        print(f"!!!!Missing keys: {msg.missing_keys}")
+        # print(f"!!!!Missing keys: {msg.missing_keys}")
         # assert (len(msg.missing_keys) == 0)
     return model
 
