@@ -1,6 +1,10 @@
-image_root: '/kaggle/input/power-dataset-self/images'
-ann_root: '/kaggle/input/power-dataset-self/annotations'
-coco_gt_root: '/kaggle/input/power-dataset-self/annotations/power_gt'
+#image_root: '/kaggle/input/power-dataset-self/images'
+#ann_root: '/kaggle/input/power-dataset-self/annotations'
+#coco_gt_root: '/kaggle/input/power-dataset-self/annotations/power_gt'
+image_root: '/kaggle/input/power-data-en/images'
+ann_root: '/kaggle/input/power-data-en/annotations'
+coco_gt_root: '/kaggle/input/power-data-en/annotations/power_gt'
+
 #image_root: 'F:/Study/22_Research_Group/image_caption/DataSet/power/power_dataset_self//images'
 #ann_root: 'F:/Study/22_Research_Group/image_caption/DataSet/power/power_dataset_self/annotations'
 #coco_gt_root: 'F:/Study/22_Research_Group/image_caption/DataSet/power/power_dataset_self/annotations/power_gt'
