@@ -1,13 +1,13 @@
-#image_root: '/kaggle/input/power-dataset-self/images'
-#ann_root: '/kaggle/input/power-dataset-self/annotations'
-#coco_gt_root: '/kaggle/input/power-dataset-self/annotations/power_gt'
-image_root: 'F:/Study/22_Research_Group/image_caption/DataSet/power/power_dataset_self//images'
-ann_root: 'F:/Study/22_Research_Group/image_caption/DataSet/power/power_dataset_self/annotations'
-coco_gt_root: 'F:/Study/22_Research_Group/image_caption/DataSet/power/power_dataset_self/annotations/power_gt'
+image_root: '/kaggle/input/power-dataset-self/images'
+ann_root: '/kaggle/input/power-dataset-self/annotations'
+coco_gt_root: '/kaggle/input/power-dataset-self/annotations/power_gt'
+#image_root: 'F:/Study/22_Research_Group/image_caption/DataSet/power/power_dataset_self//images'
+#ann_root: 'F:/Study/22_Research_Group/image_caption/DataSet/power/power_dataset_self/annotations'
+#coco_gt_root: 'F:/Study/22_Research_Group/image_caption/DataSet/power/power_dataset_self/annotations/power_gt'
 
 # set pretrained as a file path or an url
-# pretrained: 'https://storage.googleapis.com/sfr-vision-language-research/BLIP/models/model_base_caption_capfilt_large.pth'
-pretrained: 'F:/Study/22_Research_Group/image_caption/DataSet/power/power_dataset_self/checkpoints/model_base_caption_capfilt_large.pth'
+pretrained: 'https://storage.googleapis.com/sfr-vision-language-research/BLIP/models/model_base_caption_capfilt_large.pth'
+# pretrained: 'F:/Study/22_Research_Group/image_caption/DataSet/power/power_dataset_self/checkpoints/model_base_caption_capfilt_large.pth'
 
 # size of vit model; base or large
 vit: 'base'

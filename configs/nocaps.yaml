@@ -1,8 +1,11 @@
 image_root: '/kaggle/input/power-dataset-self/images/'
 ann_root: '/kaggle/input/power-dataset-self/annotations'
+#image_root: 'F:/Study/22_Research_Group/image_caption/DataSet/coco2014-1k/images'
+#ann_root: 'F:/Study/22_Research_Group/image_caption/DataSet/coco2014-1k/annotations'
 
 # set pretrained as a file path or an url
 pretrained: 'https://storage.googleapis.com/sfr-vision-language-research/BLIP/models/model_base_caption_capfilt_large.pth'
+# pretrained: 'F:/Study/22_Research_Group/image_caption/DataSet/power/power_dataset_self/checkpoints/model_base_caption_capfilt_large.pth'
 
 vit: 'base'
 batch_size: 16
