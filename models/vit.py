@@ -120,12 +120,12 @@ class Block(nn.Module):
         self.norm1 = norm_layer(dim)
         self.attn = Attention(
             dim, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop)
-        self.SMHAttn = SparseMultiHeadSelfAttention(
-            num_heads=num_heads,
-            embed_dim=dim,
-            dropout=drop,
-            use_entmax=use_entmax,
-            learnable_entmax_alpha=learnable_entmax_alpha)
+        # self.SMHAttn = SparseMultiHeadSelfAttention(
+        #     num_heads=num_heads,
+        #     embed_dim=dim,
+        #     dropout=drop,
+        #     use_entmax=use_entmax,
+        #     learnable_entmax_alpha=learnable_entmax_alpha)
         # NOTE: drop path for stochastic depth, we shall see if this is better than dropout here
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         self.norm2 = norm_layer(dim)
@@ -138,7 +138,7 @@ class Block(nn.Module):
 
     def forward(self, x, register_hook=False):
         x = x + self.drop_path(self.attn(self.norm1(x), register_hook=register_hook))
-        x = x + self.SMHAttn(self.norm2(x))
+        # x = x + self.SMHAttn(self.norm2(x))
         x = x + self.drop_path(self.mlp(self.norm2(x)))
         return x
 
