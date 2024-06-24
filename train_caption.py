@@ -125,7 +125,7 @@ def main(args, config):
         # 将模型包装在 torch.nn.parallel.DistributedDataParallel 中
         model_without_ddp = model.module  # 保存未经包装的原始模型
     # 创建AdamW 优化器对象,并传入了模型的参数、学习率以及权重衰减参数
-    optimizer = torch.optim.Adadelta(params=model.parameters(), lr=config['init_lr'], weight_decay=config['weight_decay'])
+    optimizer = torch.optim.AdamW(params=model.parameters(), lr=config['init_lr'], weight_decay=config['weight_decay'])
 
     best = 0
     best_epoch = 0
