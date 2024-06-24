@@ -29,4 +29,4 @@ prompt: 'a picture of '
 # optimizer
 weight_decay: 0.05
 min_lr: 0
-max_epoch: 50
+max_epoch: 80
