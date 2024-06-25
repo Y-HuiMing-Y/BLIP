@@ -27,6 +27,6 @@ num_beams: 3
 prompt: 'a picture of '
 
 # optimizer
-weight_decay: 0.02
+weight_decay: 0.1
 min_lr: 0
 max_epoch: 80
