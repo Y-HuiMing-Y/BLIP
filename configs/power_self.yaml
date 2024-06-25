@@ -1,13 +1,14 @@
 #image_root: '/kaggle/input/power-dataset-self/images'
 #ann_root: '/kaggle/input/power-dataset-self/annotations'
 #coco_gt_root: '/kaggle/input/power-dataset-self/annotations/power_gt'
-image_root: '/kaggle/input/power-dataset-en/images'
-ann_root: '/kaggle/input/power-dataset-en/annotations'
-coco_gt_root: '/kaggle/input/power-dataset-en/annotations/power_gt'
 
-#image_root: 'F:/Study/22_Research_Group/image_caption/DataSet/power/power_dataset_self//images'
-#ann_root: 'F:/Study/22_Research_Group/image_caption/DataSet/power/power_dataset_self/annotations'
-#coco_gt_root: 'F:/Study/22_Research_Group/image_caption/DataSet/power/power_dataset_self/annotations/power_gt'
+#image_root: '/kaggle/input/power-dataset-en/images'
+#ann_root: '/kaggle/input/power-dataset-en/annotations'
+#coco_gt_root: '/kaggle/input/power-dataset-en/annotations/power_gt'
+
+image_root: '/kaggle/input/Flickr8k/images'
+ann_root: '/kaggle/input/Flickr8k/annotations'
+coco_gt_root: '/kaggle/input/Flickr8k/annotations/flickr8k_gt'
 
 # set pretrained as a file path or an url
 pretrained: 'https://storage.googleapis.com/sfr-vision-language-research/BLIP/models/model_base_caption_capfilt_large.pth'
@@ -17,7 +18,7 @@ pretrained: 'https://storage.googleapis.com/sfr-vision-language-research/BLIP/mo
 vit: 'base'
 vit_grad_ckpt: False
 vit_ckpt_layer: 0
-batch_size: 16
+batch_size: 12
 init_lr: 1e-5
 
 # vit: 'large'
