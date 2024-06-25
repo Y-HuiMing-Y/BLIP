@@ -25,7 +25,7 @@ class coco_karpathy_train(Dataset):
         # filename = 'power_karpathy_train.json'
 
         # flickr8k
-        url = 'https://download.csdn.net/download/m0_53761112/89481328/flickr8k_train.json'
+        url = 'https://download.csdn.net/download/m0_53761112/89482582/flickr8k_train.json'
         filename = 'flickr8k_train.json'
 
         download_url(url, ann_root)
@@ -80,8 +80,8 @@ class coco_karpathy_caption_eval(Dataset):
         # filenames = {'val': 'power_karpathy_val.json', 'test': 'power_karpathy_test.json'}
 
         # flickr8k
-        urls = {'val': 'https://download.csdn.net/download/m0_53761112/89481329/flickr8k_val.json',
-                'test': 'https://download.csdn.net/download/m0_53761112/89481331/flickr8k_test.json'}
+        urls = {'val': 'https://download.csdn.net/download/m0_53761112/89482583/flickr8k_val.json',
+                'test': 'https://download.csdn.net/download/m0_53761112/89482586/flickr8k_test.json'}
         filenames = {'val': 'flickr8k_val.json', 'test': 'flickr8k_test.json'}
 
         download_url(urls[split], ann_root)
