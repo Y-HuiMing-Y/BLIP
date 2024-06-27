@@ -6,13 +6,13 @@
 #ann_root: '/kaggle/input/power-dataset-en/annotations'
 #coco_gt_root: '/kaggle/input/power-dataset-en/annotations/power_gt'
 
-#image_root: '/kaggle/input/Flickr8k/images'
-#ann_root: '/kaggle/input/Flickr8k/annotations'
-#coco_gt_root: '/kaggle/input/Flickr8k/annotations/flickr8k_gt'
+image_root: '/kaggle/input/Flickr8k/images'
+ann_root: '/kaggle/input/Flickr8k/annotations'
+coco_gt_root: '/kaggle/input/Flickr8k/annotations/flickr8k_gt'
 
-image_root: 'F:/Study/22_Research_Group/image_caption/DataSet/Flickr8k/images'
-ann_root: 'F:/Study/22_Research_Group/image_caption/DataSet/Flickr8k/annotations'
-coco_gt_root: 'F:/Study/22_Research_Group/image_caption/DataSet/Flickr8k/annotations/flickr8k_gt'
+#image_root: 'F:/Study/22_Research_Group/image_caption/DataSet/Flickr8k/images'
+#ann_root: 'F:/Study/22_Research_Group/image_caption/DataSet/Flickr8k/annotations'
+#coco_gt_root: 'F:/Study/22_Research_Group/image_caption/DataSet/Flickr8k/annotations/flickr8k_gt'
 
 # set pretrained as a file path or an url
 # pretrained: 'https://storage.googleapis.com/sfr-vision-language-research/BLIP/models/model_base_caption_capfilt_large.pth'
