@@ -8,6 +8,8 @@
  * https://github.com/huggingface/transformers/blob/v4.15.0/src/transformers/models/bert
 '''
 
+# 添加稀疏自注意力sparse_attentions（未完成）
+
 import math
 import os
 import warnings
@@ -407,6 +409,7 @@ class BertEncoder(nn.Module):
         all_hidden_states = () if output_hidden_states else None
         all_self_attentions = () if output_attentions else None
         all_cross_attentions = () if output_attentions and self.config.add_cross_attention else None
+        # all_sparse_attentions = () if output_attentions and self.config.add_cross_attention else None
 
         next_decoder_cache = () if use_cache else None
                
@@ -471,6 +474,7 @@ class BertEncoder(nn.Module):
                     all_hidden_states,
                     all_self_attentions,
                     all_cross_attentions,
+                    # all_sparse_attentions
                 ]
                 if v is not None
             )
@@ -480,6 +484,7 @@ class BertEncoder(nn.Module):
             hidden_states=all_hidden_states,
             attentions=all_self_attentions,
             cross_attentions=all_cross_attentions,
+            # sparse_attentions=all_sparse_attentions
         )
 
 
@@ -581,13 +586,13 @@ class BertModel(BertPreTrainedModel):
     def __init__(self, config, add_pooling_layer=True):
         super().__init__(config)
         self.config = config
-
+        # 通过BertEmbeddings类创建embeddings对象
         self.embeddings = BertEmbeddings(config)
-        
+        # 通过BertEncoder类创建encoder对象
         self.encoder = BertEncoder(config)
-
+        # 通过BertPooler类创建pooler对象
         self.pooler = BertPooler(config) if add_pooling_layer else None
-
+        # 初始化weights
         self.init_weights()
  
 
@@ -804,6 +809,7 @@ class BertModel(BertPreTrainedModel):
             hidden_states=encoder_outputs.hidden_states,
             attentions=encoder_outputs.attentions,
             cross_attentions=encoder_outputs.cross_attentions,
+            # sparse_attentions=encoder_outputs.sparse_attentions
         )
 
 
@@ -930,6 +936,7 @@ class BertLMHeadModel(BertPreTrainedModel):
             hidden_states=outputs.hidden_states,
             attentions=outputs.attentions,
             cross_attentions=outputs.cross_attentions,
+            # sparse_attention=outputs.sparse_attentions
         )
 
     def prepare_inputs_for_generation(self, input_ids, past=None, attention_mask=None, **model_kwargs):
