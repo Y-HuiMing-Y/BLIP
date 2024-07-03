@@ -23,7 +23,7 @@ vit: 'base'
 vit_grad_ckpt: False
 vit_ckpt_layer: 0
 batch_size: 8
-init_lr: 5e-6
+init_lr: 1e-5
 
 # vit: 'large'
 # vit_grad_ckpt: True
@@ -40,7 +40,7 @@ num_beams: 3
 prompt: 'a picture of '
 
 # optimizer
-weight_decay: 0.05
+weight_decay: 0.01
 min_lr: 0
 max_epoch: 50
 
