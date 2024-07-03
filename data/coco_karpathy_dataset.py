@@ -21,13 +21,13 @@ class coco_karpathy_train(Dataset):
         # url = 'https://download.csdn.net/download/m0_53761112/89452397/power_karpathy_train.json'
         # filename = 'power_karpathy_train.json'
 
-        # # power-dataset-self
-        # url = 'https://download.csdn.net/download/m0_53761112/88735898/power_karpathy_train.json'
-        # filename = 'power_karpathy_train.json'
+        # power-dataset-self
+        url = 'https://download.csdn.net/download/m0_53761112/88735898/power_karpathy_train.json'
+        filename = 'power_karpathy_train.json'
 
-        # flickr8k
-        url = 'https://download.csdn.net/download/m0_53761112/89482582/flickr8k_train.json'
-        filename = 'flickr8k_train.json'
+        # # flickr8k
+        # url = 'https://download.csdn.net/download/m0_53761112/89482582/flickr8k_train.json'
+        # filename = 'flickr8k_train.json'
 
         download_url(url, ann_root)
 
@@ -77,15 +77,15 @@ class coco_karpathy_caption_eval(Dataset):
         #         'test':'https://download.csdn.net/download/m0_53761112/89452384/power_karpathy_test.json'}
         # filenames = {'val':'power_karpathy_val.json','test':'power_karpathy_test.json'}
 
-        # # power-dataset-self
-        # urls = {'val': 'https://download.csdn.net/download/m0_53761112/88735907/power_karpathy_val.json',
-        #         'test': 'https://download.csdn.net/download/m0_53761112/88735903/power_karpathy_test.json'}
-        # filenames = {'val': 'power_karpathy_val.json', 'test': 'power_karpathy_test.json'}
+        # power-dataset-self
+        urls = {'val': 'https://download.csdn.net/download/m0_53761112/88735907/power_karpathy_val.json',
+                'test': 'https://download.csdn.net/download/m0_53761112/88735903/power_karpathy_test.json'}
+        filenames = {'val': 'power_karpathy_val.json', 'test': 'power_karpathy_test.json'}
 
-        # flickr8k
-        urls = {'val': 'https://download.csdn.net/download/m0_53761112/89482583/flickr8k_val.json',
-                'test': 'https://download.csdn.net/download/m0_53761112/89482586/flickr8k_test.json'}
-        filenames = {'val': 'flickr8k_val.json', 'test': 'flickr8k_test.json'}
+        # # flickr8k
+        # urls = {'val': 'https://download.csdn.net/download/m0_53761112/89482583/flickr8k_val.json',
+        #         'test': 'https://download.csdn.net/download/m0_53761112/89482586/flickr8k_test.json'}
+        # filenames = {'val': 'flickr8k_val.json', 'test': 'flickr8k_test.json'}
 
         download_url(urls[split], ann_root)
 

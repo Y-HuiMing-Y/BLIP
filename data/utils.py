@@ -91,15 +91,15 @@ def coco_caption_eval(coco_gt_root, results_file, split):
     #         'test': 'https://download.csdn.net/download/m0_53761112/89452833/power_karpathy_test_gt.json'}
     # filenames = {'val': 'power_karpathy_val_gt.json', 'test': 'power_karpathy_test_gt.json'}
 
-    # # power-data-self
-    # urls = {'val':'https://download.csdn.net/download/m0_53761112/89287324/power_karpathy_val_gt.json',
-    #         'test':'https://download.csdn.net/download/m0_53761112/89287319/power_karpathy_test_gt.json'}
-    # filenames = {'val':'power_karpathy_val_gt.json','test':'power_karpathy_test_gt.json'}
+    # power-data-self
+    urls = {'val':'https://download.csdn.net/download/m0_53761112/89287324/power_karpathy_val_gt.json',
+            'test':'https://download.csdn.net/download/m0_53761112/89287319/power_karpathy_test_gt.json'}
+    filenames = {'val':'power_karpathy_val_gt.json','test':'power_karpathy_test_gt.json'}
 
-    # flickr8k
-    urls = {'val':'https://download.csdn.net/download/m0_53761112/89482589/flickr8k_val_gt.json',
-            'test':'https://download.csdn.net/download/m0_53761112/89482591/flickr8k_test_gt.json'}
-    filenames = {'val': 'flickr8k_val_gt.json', 'test': 'flickr8k_test_gt.json'}
+    # # flickr8k
+    # urls = {'val':'https://download.csdn.net/download/m0_53761112/89482589/flickr8k_val_gt.json',
+    #         'test':'https://download.csdn.net/download/m0_53761112/89482591/flickr8k_test_gt.json'}
+    # filenames = {'val': 'flickr8k_val_gt.json', 'test': 'flickr8k_test_gt.json'}
 
     download_url(urls[split],coco_gt_root)
     annotation_file = os.path.join(coco_gt_root,filenames[split])
