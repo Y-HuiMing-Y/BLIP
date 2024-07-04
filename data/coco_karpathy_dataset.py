@@ -15,8 +15,8 @@ class coco_karpathy_train(Dataset):
         image_root (string): Root directory of images (e.g. coco/images/)
         ann_root (string): directory to store the annotation file
         '''
-        url = 'https://storage.googleapis.com/sfr-vision-language-research/datasets/coco_karpathy_train.json'
-        filename = 'coco_karpathy_train.json'
+        # url = 'https://storage.googleapis.com/sfr-vision-language-research/datasets/coco_karpathy_train.json'
+        # filename = 'coco_karpathy_train.json'
 
         # url = 'https://download.csdn.net/download/m0_53761112/89452397/power_karpathy_train.json'
         # filename = 'power_karpathy_train.json'
@@ -25,9 +25,9 @@ class coco_karpathy_train(Dataset):
         # url = 'https://download.csdn.net/download/m0_53761112/88735898/power_karpathy_train.json'
         # filename = 'power_karpathy_train.json'
 
-        # # flickr8k
-        # url = 'https://download.csdn.net/download/m0_53761112/89482582/flickr8k_train.json'
-        # filename = 'flickr8k_train.json'
+        # flickr8k
+        url = 'https://download.csdn.net/download/m0_53761112/89482582/flickr8k_train.json'
+        filename = 'flickr8k_train.json'
 
         download_url(url, ann_root)
 
@@ -68,9 +68,9 @@ class coco_karpathy_caption_eval(Dataset):
         ann_root (string): directory to store the annotation file
         split (string): val or test
         '''
-        urls = {'val':'https://storage.googleapis.com/sfr-vision-language-research/datasets/coco_karpathy_val.json',
-                'test':'https://storage.googleapis.com/sfr-vision-language-research/datasets/coco_karpathy_test.json'}
-        filenames = {'val':'coco_karpathy_val.json','test':'coco_karpathy_test.json'}
+        # urls = {'val':'https://storage.googleapis.com/sfr-vision-language-research/datasets/coco_karpathy_val.json',
+        #         'test':'https://storage.googleapis.com/sfr-vision-language-research/datasets/coco_karpathy_test.json'}
+        # filenames = {'val':'coco_karpathy_val.json','test':'coco_karpathy_test.json'}
 
         # # power-data-en
         # urls = {'val':'https://download.csdn.net/download/m0_53761112/89452398/power_karpathy_val.json',
@@ -82,10 +82,10 @@ class coco_karpathy_caption_eval(Dataset):
         #         'test': 'https://download.csdn.net/download/m0_53761112/88735903/power_karpathy_test.json'}
         # filenames = {'val': 'power_karpathy_val.json', 'test': 'power_karpathy_test.json'}
 
-        # # flickr8k
-        # urls = {'val': 'https://download.csdn.net/download/m0_53761112/89482583/flickr8k_val.json',
-        #         'test': 'https://download.csdn.net/download/m0_53761112/89482586/flickr8k_test.json'}
-        # filenames = {'val': 'flickr8k_val.json', 'test': 'flickr8k_test.json'}
+        # flickr8k
+        urls = {'val': 'https://download.csdn.net/download/m0_53761112/89482583/flickr8k_val.json',
+                'test': 'https://download.csdn.net/download/m0_53761112/89482586/flickr8k_test.json'}
+        filenames = {'val': 'flickr8k_val.json', 'test': 'flickr8k_test.json'}
 
         download_url(urls[split], ann_root)
 
