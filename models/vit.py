@@ -22,6 +22,7 @@ from timm.models.helpers import named_apply, adapt_input_conv
 
 from fairscale.nn.checkpoint.checkpoint_activations import checkpoint_wrapper
 
+from models.DEConv.deconv import DEConv
 from models.SparseAttention.sparse_mha import SparseMultiHeadSelfAttention
 
 
@@ -172,6 +173,7 @@ class VisionTransformer(nn.Module):
             norm_layer: (nn.Module): normalization layer
         """
         super().__init__()
+        self.DEConv = DEConv()
         self.num_features = self.embed_dim = embed_dim  # num_features for consistency with other models
         norm_layer = norm_layer or partial(nn.LayerNorm, eps=1e-6)  # 若未传入归一化函数则采用LayerNorm
         self.patch_embed = PatchEmbed(
@@ -220,6 +222,7 @@ class VisionTransformer(nn.Module):
     def forward(self, x, register_blk=-1):
         # B = x.shape[0]  # 提取x的0号位作为批量大小
         B, C, H, W = x.shape
+        x = DEConv(dim=384)
         x = self.patch_embed(x)  # 调用patch_embed对象将输入x转为嵌入序列
         cls_tokens = self.cls_token.expand(B, -1, -1)  # stole cls_tokens impl from Phil Wang, thanks
         # 扩展cls令牌的第一个维度为B，-1表示保持原维度不变
