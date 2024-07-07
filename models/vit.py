@@ -173,7 +173,7 @@ class VisionTransformer(nn.Module):
             norm_layer: (nn.Module): normalization layer
         """
         super().__init__()
-        self.DEConv = DEConv()
+        self.DEConv = DEConv(dim=384)
         self.num_features = self.embed_dim = embed_dim  # num_features for consistency with other models
         norm_layer = norm_layer or partial(nn.LayerNorm, eps=1e-6)  # 若未传入归一化函数则采用LayerNorm
         self.patch_embed = PatchEmbed(
