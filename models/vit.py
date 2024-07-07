@@ -173,7 +173,7 @@ class VisionTransformer(nn.Module):
             norm_layer: (nn.Module): normalization layer
         """
         super().__init__()
-        self.DEConv = DEConv(dim=384)
+        self.deconv = DEConv(dim=3)
         self.num_features = self.embed_dim = embed_dim  # num_features for consistency with other models
         norm_layer = norm_layer or partial(nn.LayerNorm, eps=1e-6)  # 若未传入归一化函数则采用LayerNorm
         self.patch_embed = PatchEmbed(
@@ -223,7 +223,7 @@ class VisionTransformer(nn.Module):
         # B = x.shape[0]  # 提取x的0号位作为批量大小
         B, C, H, W = x.shape
         print("--------", x.shape)
-        x = DEConv(x)
+        x = self.deconv(x)
         print("--------", x.shape)
         x = self.patch_embed(x)  # 调用patch_embed对象将输入x转为嵌入序列
         cls_tokens = self.cls_token.expand(B, -1, -1)  # stole cls_tokens impl from Phil Wang, thanks
